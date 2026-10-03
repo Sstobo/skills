@@ -28,7 +28,7 @@ npm install better-auth@~1.6.15
 npm install @types/node --save-dev
 ```
 
-Component peer range: `better-auth >=1.6.11 <1.7.0`, `convex ^1.25.0`. Pin `better-auth` with `~`. Version drift is the usual cause of phantom type errors.
+Component peer range: `better-auth >=1.6.11 <1.7.0`, `convex ^1.25.0`. Pin `better-auth` with `~`. Version drift is the usual cause of phantom type errors. `better-auth` on npm is already on 1.7.x (1.7.7 when last checked), so an unpinned `npm install better-auth` lands outside the peer range.
 
 ### Environment variables
 

@@ -10,8 +10,9 @@
 // and agents kept inventing values for them (ponytail: enforce what is read, not what is written). Every rule here already existed in LOOP.md/TRACKER.md; this only makes them
 // refuse instead of advise. Prints one violation per line; silence is a pass.
 
-import { readFileSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, realpathSync, readdirSync, existsSync } from 'node:fs'
 import { join, basename, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const KINDS = new Set(['afk', 'hitl'])
 const STATES = ['needs-triage', 'needs-info', 'ready', 'in-progress', 'in-review', 'done', 'regression', 'wontfix']
@@ -23,7 +24,7 @@ function frontmatter(text) {
   if (!m) return fm
   for (const line of m[1].split('\n')) {
     const kv = line.match(/^([A-Za-z]+):\s*(.*)$/)
-    if (kv) fm[kv[1]] = kv[2].trim().replace(/^"(.*)"$/, '$1')
+    if (kv) fm[kv[1]] = kv[2].replace(/\s+#.*$/, '').trim().replace(/^"(.*)"$/, '$1') // drop a YAML trailing comment
   }
   return fm
 }
@@ -104,7 +105,7 @@ export function preflight(repo, now = Date.now()) {
 
 // --- cli ---------------------------------------------------------------------------------------
 
-if (process.argv[1] && resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const [cmd, ...rest] = process.argv.slice(2)
   const ri = rest.indexOf('--repo')
   const repo = ri >= 0 ? resolve(rest[ri + 1]) : process.cwd()

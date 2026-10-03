@@ -46,6 +46,8 @@ Prototyping a throwaway UI ad hoc in the working tree is fine when interaction s
 
 Do not read all of these upfront. Load only what the current session needs.
 
+Commands in these files write `<skill-dir>` for the folder this `SKILL.md` lives in (for example `.claude/skills/ship-it` or `~/.claude/skills/ship-it`, depending on how it was installed). The scripts need Node 18+ and no dependencies.
+
 | When | Load |
 |---|---|
 | Phase 3 — the loop, verification, doc-grounding, commit | [references/LOOP.md](references/LOOP.md) |
@@ -178,7 +180,7 @@ Exit: approved ticket files in `tickets/ready/` with correct frontmatter (kind, 
 
 ## Phase 3 — Implement, Verify, Review Loop
 
-Load [references/LOOP.md](references/LOOP.md). The loop is a trigger, an action, a verifier and a stop rule; the verifier and stop rule are enforced by `scripts/verify.mjs` (preflight before claiming, `done` gate before every move to `done/`), not by reading the rules. Do not split implementation and QA into separate phases. The main agent orchestrates; it does **not** write ticket code itself — implementation is delegated to an implementer agent (default `tanstack-convex-agent` on Convex + TanStack projects, otherwise `general-purpose`; `model: opus`; overridable per-ticket via the `implementer` frontmatter field).
+Load [references/LOOP.md](references/LOOP.md). The loop is a trigger, an action, a verifier and a stop rule; the verifier and stop rule are enforced by `scripts/verify.mjs` (preflight before claiming, `done` gate before every move to `done/`), not by reading the rules. Do not split implementation and QA into separate phases. The main agent orchestrates; it does **not** write ticket code itself — implementation is delegated to an implementer agent (default `general-purpose` on the strongest available model; overridable per-ticket via the `implementer` frontmatter field). Delegation needs a subagent tool such as Claude Code's `Agent`; without one, see LOOP.md Step 3.
 
 **Doc-grounding — a reading list per ticket, a write-back once per run.** After claim and scope, before any edit, `scripts/doc-ground.mjs` names the docs that declare the files you are about to change. Read them. Fill and record the frame including its ELI14 block. It **stops for a human** only on real risk: a doc naming a source that no longer exists, a schema change or migration, a new dependency, a public signature change, or a path on the risk list. Everything else proceeds on the criteria approved in Phase 2, because a gate that fires on every ticket stops being read by the twentieth. Doc write-back happens once, at the run-level stop, against the run's actual diff. Never gate a build on documentation.
 
@@ -208,7 +210,7 @@ Load [references/TRIAGE.md](references/TRIAGE.md). Runs on demand — not a numb
 ## Common Deviations
 
 - **User skips upstream prep.** Name the risk once (fuzzy spec → weaker tickets) and continue.
-- **User wants one specific ticket.** Find it (`ls tickets/*/<slug>.md`), run Step 2 announce+confirm, then implement/verify/review/commit only that ticket, stop.
+- **User wants one specific ticket.** Find it (`ls tickets/*/<slug>.md`), run Step 2 (doc-ground; stop for confirm only on a risk trigger), then implement/verify/review/commit only that ticket, stop.
 - **User pre-confirms in the same message as /ship-it.** Only a risk-triggered gate needs waiving at all now. When one fires and the message explicitly waived it, check the frame matches that waiver before proceeding. When unsure, wait.
 - **User files a bug or an ad-hoc feature.** Create the file in `tickets/needs-triage/` with the right `category`, then triage. Do not drop straight into the loop.
 - **Stale claim.** A file stuck in `tickets/in-progress/` or `tickets/in-review/` with an old timestamp. Surface to the user — never silently move another agent's claim.
@@ -224,7 +226,7 @@ Load only when the implementation domain matches and the skill is available. The
 | Better Auth setup | `better-auth-convex` |
 | Convex unit tests | `convex-testing` |
 | Writing or restructuring the docs bundle | `okf` — ship-it reads docs and fixes what a run broke; it never runs an annotate or restructure pass |
-| Readability pass over what a run produced | `code-simplification` — offered at the run-level stop, never run inside the loop |
+| Readability pass over what a run produced | `code-simplification` (not in this repo; use it if installed) — offered at the run-level stop, never run inside the loop |
 
 Do not invoke any supporting skill as a stopping point. Read what's relevant and continue.
 

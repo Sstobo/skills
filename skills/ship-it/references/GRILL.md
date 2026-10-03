@@ -13,13 +13,13 @@ Skip it when the answer would not change what gets built. A grill that produces 
 
 ## 1 — Ask, one question at a time
 
-Every question goes through `AskUserQuestion`, never as prose.
+Every question goes through `AskUserQuestion` (Claude Code; in another harness use its multiple-choice tool, or a numbered list if it has none), never as open prose.
 
 - Two to four options, arrow-selectable.
 - Ranked. Your recommendation is first and carries `(Recommended)`.
 - Each option says what happens if it is chosen, not what it is.
 - One question per call, unless two are genuinely independent — then put both in the same call as separate questions rather than stacking prose confirms.
-- Use an option `preview` when the choice is easier to see than to describe: a shape, a diff, a layout, a schema.
+- Where the tool supports it, use an option `preview` when the choice is easier to see than to describe: a shape, a diff, a layout, a schema.
 - Never ask what you can read. Check the code, the docs, and `tickets/.out-of-scope/` first, and ask only what the repo cannot answer.
 
 Stop when the next question would not change the implementation.

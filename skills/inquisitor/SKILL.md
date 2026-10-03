@@ -36,7 +36,7 @@ Number them (A1, A2, …). This register is the interrogation docket.
 
 ### Step 2 — Interrogation fan-out
 
-Launch parallel `Explore` agents in a single message, each embodying one outside perspective. Give each agent the assumption register and the success frame. Pick 3–5 perspectives that fit the target:
+Launch parallel read-only subagents in a single message (in Claude Code, `Explore` agents), each embodying one outside perspective. In a harness without subagents, take each perspective yourself in turn, one at a time. Give each agent the assumption register and the success frame. Pick 3–5 perspectives that fit the target:
 
 1. **The cold-eyed newcomer** — first contact with the thing. Can they understand it, run it, use it? What's confusing, undocumented, or broken on the happy path?
 2. **The skeptic with money** — would anyone actually pay/adopt/use this? What existing thing already does it? What is the honest differentiator, if any?
@@ -60,7 +60,7 @@ Verdict per finding: `CONVICTED` (evidence holds, threatens success) / `DISMISSE
 
 For a small target (one decision, one file, one plan doc), deliver in the terminal: success frame, then convicted truths ranked by damage, each with evidence and the assumption it kills, then suspected items, then — last, briefly — what genuinely holds up.
 
-For a target with real structure, deliver as a self-contained HTML report (dark theme, Tailwind + Mermaid via CDN, single file) at `docs/inquisitions/<target>-<YYYY-MM-DD>.html` in a git repo (create dir if absent), else the scratchpad; `open` it and give the absolute path. Structure:
+For a target with real structure, deliver as a self-contained HTML report (dark theme, Tailwind + Mermaid via CDN, single file) at `docs/inquisitions/<target>-<YYYY-MM-DD>.html` in a git repo (create dir if absent), else a temp directory; open it in a browser (`open` on macOS, `xdg-open` on Linux) and give the absolute path. Structure:
 
 1. Header: target + the inquisitor's success frame (and the delta from the user's stated goal, if any).
 2. Scoreboard: assumptions harvested, findings raised, convicted / dismissed / suspected counts.
@@ -79,5 +79,5 @@ Close in the terminal with a five-line TLDR: the success frame in one sentence, 
 - Evidence or it didn't happen: `file:line`, commit hash, doc quote, or explicitly-flagged reasoning. An agent's opinion is not evidence.
 - Rank by damage to the success frame, not by ease of fixing or emotional weight.
 - Say what holds. An inquisition that convicts everything is as useless as one that convicts nothing — indiscriminate teardown is noise wearing rigor's clothes.
-- The inquisitor reports; it does not fix. Offer to hand convicted truths to another skill or agent (scour, ship-it, a plan) only after the verdict is delivered.
+- The inquisitor reports; it does not fix. Offer to hand convicted truths to another skill or agent (e.g. the `scour` or `ship-it` skills in this repo, or a plan) only after the verdict is delivered.
 - Scale to the target: a single decision gets 2–3 perspectives and a terminal verdict; a whole product gets the full tribunal and the HTML report. No ceremony for small targets.

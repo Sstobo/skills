@@ -1,505 +1,348 @@
 ---
 name: convex-helpers
-description: "This skill provides comprehensive guidance for using convex-helpers, a collection of utilities that complement official Convex packages. This skill should be used when implementing custom functions, relationship traversal, row-level security, Zod validation, triggers, CRUD utilities, pagination, query caching, streams, or HTTP endpoints with Convex. It covers patterns for authentication wrappers, session tracking, rate limiting, migrations, and validator utilities."
+description: >-
+  Reference for the convex-helpers npm package (utilities that sit alongside the
+  official Convex packages). Use when writing custom query/mutation/action
+  wrappers (auth, extra ctx, extra args), relationship lookups, row-level
+  security, Zod-validated functions, triggers, CRUD scaffolding, validator
+  utilities, manual pagination, merged or joined query streams, the React query
+  cache, session IDs, useQueryWithStatus, Hono or CORS for HTTP actions, or the
+  ts-api-spec/open-api-spec CLI. Also covers when to use a Convex component
+  instead (rate limiting, retries, migrations).
 ---
 
 # convex-helpers
 
-A collection of useful code to complement the official Convex packages.
+Checked against `convex-helpers` **0.1.126** (npm, 2026-10-03). That release peers on `convex ^1.46.0`. Source of truth: the package README at https://github.com/get-convex/convex-helpers/tree/main/packages/convex-helpers and the `.ts` files shipped in the npm tarball. If this file and the installed code disagree, the code wins.
 
-## Custom Functions
-
-Build customized versions of `query`, `mutation`, and `action` that define custom behavior:
-
-- Run authentication logic before the request starts
-- Look up commonly used data and add it to the `ctx` argument
-- Replace a `ctx` or `argument` field with a different value
-- Consume arguments from the client not passed to the action (e.g., API keys, session IDs)
-- Execute finalization logic after function execution using the `onSuccess` callback
-
-```ts
-import { customQuery } from "convex-helpers/server/customFunctions";
-
-const myQueryBuilder = customQuery(query, {
-  args: { apiToken: v.id("api_tokens") },
-  input: async (ctx, args) => {
-    const apiUser = await getApiUser(args.apiToken);
-    const db = wrapDatabaseReader({ apiUser }, ctx.db, rlsRules);
-    return {
-      ctx: { db, apiUser },
-      args: {},
-      onSuccess: ({ args, result }) => {
-        console.log(apiUser.name, args, result);
-      },
-    };
-  },
-});
-
-export const getSomeData = myQueryBuilder({
-  args: { someArg: v.string() },
-  handler: async (ctx, args) => {
-    const { db, apiUser } = ctx;
-    const { someArg } = args;
-    // ...
-  },
-});
+```bash
+npm install convex-helpers
 ```
 
-### Taking Extra Arguments
+Every helper lives under a subpath. Importing the wrong subpath is the most common mistake, so the map comes first.
 
-Specify the type of a third input arg for extra arguments:
+| Import path | What you get |
+|---|---|
+| `convex-helpers` | `asyncMap`, `pruneNull`, `nullThrows`, `pick`, `omit`, `withoutSystemFields` |
+| `convex-helpers/server/customFunctions` | `customQuery`, `customMutation`, `customAction`, `customCtx`, `customCtxAndArgs`, `NoOp` |
+| `convex-helpers/server/relationships` | `getOneFrom[OrThrow]`, `getManyFrom`, `getManyVia[OrThrow]`, `getAll[OrThrow]`, `getOrThrow` |
+| `convex-helpers/server/rowLevelSecurity` | `wrapDatabaseReader`, `wrapDatabaseWriter`, `Rules`, `RLSConfig` |
+| `convex-helpers/server/zod4` / `zod3` | `zCustomQuery`/`Mutation`/`Action`, `zid`, `zodToConvex`, `convexToZod`, ... |
+| `convex-helpers/server/triggers` | `Triggers` |
+| `convex-helpers/server/crud` | `crud` |
+| `convex-helpers/validators` | `literals`, `nullable`, `partial`, `deprecated`, `brandedString`, `doc`, `typedV`, `systemFields`, `validate`, `parse` |
+| `convex-helpers/server/filter` | `filter` |
+| `convex-helpers/server/pagination` | `getPage`, `paginator` |
+| `convex-helpers/server/stream` | `stream`, `mergedStream`, `MergedStream` |
+| `convex-helpers/server/sessions` | `SessionIdArg`, `vSessionId`, `SessionId` |
+| `convex-helpers/server/hono` | `HonoWithConvex`, `HttpRouterWithHono` |
+| `convex-helpers/server/cors` | `corsRouter` |
+| `convex-helpers/server/migrations` | `makeMigration`, `migrationsTable`, `startMigration`, ... |
+| `convex-helpers/server/retries` | `makeActionRetrier` |
+| `convex-helpers/server/rateLimit` | `defineRateLimits`, `rateLimit`, `rateLimitTables`, ... |
+| `convex-helpers/react` | `makeUseQueryWithStatus`, `useQuery`, `usePaginatedQuery` |
+| `convex-helpers/react/sessions` | `SessionProvider`, `useSessionQuery`, `useSessionMutation`, `useSessionAction`, `useSessionId` |
+| `convex-helpers/react/cache` (Next.js: `/react/cache/provider` and `/react/cache/hooks`) | `ConvexQueryCacheProvider`, cached `useQuery`/`useQueries`/`usePaginatedQuery` |
+| `convex-helpers/standardSchema` | `toStandardSchema` |
+
+## Prefer a component for these three
+
+The README itself points to components for:
+
+- Rate limiting → `@convex-dev/rate-limiter`
+- Action retries → `@convex-dev/action-retrier`
+- Migrations → `@convex-dev/migrations` (no extra table in your schema)
+
+The helpers versions still ship. Use them only if a project already does.
+
+## Custom functions (the foundation)
+
+Most other helpers (RLS, sessions, triggers, Zod) plug into these. `customQuery(query, customization)` returns a builder you use in place of `query`.
+
+The customization's `input(ctx, args, extra)` runs before every handler and returns `{ ctx, args, onSuccess? }`:
+
+- `ctx` fields are merged into the handler's `ctx` (add `user`, replace `db`).
+- `args` are passed through to the handler. Anything declared in the customization's `args` is consumed and not passed on unless you return it.
+- `onSuccess({ args, result })` runs after the handler returns.
+- A third parameter takes extra, typed, per-function options.
 
 ```ts
-const myQueryBuilder = customQuery(query, {
+// convex/lib/functions.ts
+import { customQuery, customMutation, customCtx } from "convex-helpers/server/customFunctions";
+import { query, mutation } from "../_generated/server";
+
+export const authedQuery = customQuery(query, {
   args: {},
-  input: async (ctx, args, { role }: { role: "admin" | "user" }) => {
-    const user = await getUser(ctx);
-    if (role === "admin" && user.role !== "admin") {
-      throw new Error("You are not an admin");
-    }
+  input: async (ctx, _args, { role }: { role: "admin" | "user" }) => {
+    const user = await getCurrentUser(ctx); // your own lookup
+    if (!user) throw new Error("Not signed in");
+    if (role === "admin" && user.role !== "admin") throw new Error("Admins only");
     return { ctx: { user }, args: {} };
   },
 });
 
-const myAdminQuery = myQueryBuilder({
+// customCtx is shorthand when you only add to ctx
+export const timedMutation = customMutation(
+  mutation,
+  customCtx(async () => ({ startedAt: Date.now() })),
+);
+
+// usage
+export const listUsers = authedQuery({
   role: "admin",
   args: {},
-  handler: async (ctx, args) => {
-    // ...
-  },
+  handler: async (ctx) => ctx.db.query("users").collect(),
 });
 ```
 
-## Relationship Helpers
+Use `NoOp` as the customization when you only want the builder shape, e.g. `zCustomQuery(query, NoOp)`.
 
-Traverse database relationships without boilerplate:
+## Relationships
+
+Lookups go through an **index**, not a bare field: `getManyFrom(db, table, indexName, value, field?)`. The field defaults to the index name with any `by_` prefix removed (`"by_authorId"` → `authorId`). Pass `field` only when that guess is wrong.
 
 ```ts
-import {
-  getOneFromOrThrow,
-  getManyFrom,
-  getManyViaOrThrow,
-} from "convex-helpers/server/relationships.js";
+import { getOneFromOrThrow, getManyFrom, getManyVia } from "convex-helpers/server/relationships";
 import { asyncMap } from "convex-helpers";
 
-const author = await getOneFromOrThrow(db, "authors", "userId", user._id);
-const posts = await asyncMap(
-  await getManyFrom(db, "posts", "authorId", author._id),
-  async (post) => {
-    const comments = await getManyFrom(db, "comments", "postId", post._id);
-    // many-to-many via join table
-    const categories = await getManyViaOrThrow(
-      db,
-      "postCategories",
-      "categoryId",
-      "postId",
-      post._id,
-    );
-    return { ...post, comments, categories };
-  },
-);
+const profile = await getOneFromOrThrow(ctx.db, "profiles", "userId", userId);   // 1:1, index "userId"
+const posts = await getManyFrom(ctx.db, "posts", "by_authorId", userId);        // 1:many
+const withTags = await asyncMap(posts, async (post) => ({
+  ...post,
+  // many:many through a join table: (joinTable, idFieldToFollow, index, value)
+  tags: await getManyVia(ctx.db, "postTags", "tagId", "by_postId", post._id),
+}));
 ```
 
-## Row-Level Security
+`getAll(db, ids)` (or `getAll(db, table, ids)`) loads several ids. `*OrThrow` variants throw instead of returning `null`.
 
-Add row-level checks for server-side functions:
+## Row-level security
+
+Wrap `ctx.db` so every document read, insert and modify goes through a rule. Rules return `true` to allow. A rule can also throw.
 
 ```ts
-import {
-  customCtx,
-  customMutation,
-  customQuery,
-} from "convex-helpers/server/customFunctions";
-import {
-  Rules,
-  RLSConfig,
-  wrapDatabaseReader,
-  wrapDatabaseWriter,
-} from "convex-helpers/server/rowLevelSecurity";
+import { customQuery, customMutation, customCtx } from "convex-helpers/server/customFunctions";
+import { Rules, RLSConfig, wrapDatabaseReader, wrapDatabaseWriter } from "convex-helpers/server/rowLevelSecurity";
 import { DataModel } from "./_generated/dataModel";
-import { mutation, query, QueryCtx } from "./_generated/server";
+import { query, mutation, QueryCtx } from "./_generated/server";
 
-async function rlsRules(ctx: QueryCtx) {
+async function rules(ctx: QueryCtx) {
   const identity = await ctx.auth.getUserIdentity();
   return {
-    users: {
-      read: async (_, user) => {
-        if (!identity && user.age < 18) return false;
-        return true;
-      },
-      insert: async (_, user) => true,
-      modify: async (_, user) => {
-        if (!identity) throw new Error("Must be authenticated to modify a user");
-        return user.tokenIdentifier === identity.tokenIdentifier;
-      },
+    notes: {
+      read: async (_ctx, note) => note.ownerId === identity?.subject,
+      insert: async (_ctx, note) => note.ownerId === identity?.subject,
+      modify: async (_ctx, note) => note.ownerId === identity?.subject,
     },
   } satisfies Rules<QueryCtx, DataModel>;
 }
 
-const config: RLSConfig = { defaultPolicy: "deny" };
+const config: RLSConfig = { defaultPolicy: "deny" }; // default is "allow" for tables with no rules
 
-const queryWithRLS = customQuery(
-  query,
-  customCtx(async (ctx) => ({
-    db: wrapDatabaseReader(ctx, ctx.db, await rlsRules(ctx), config),
-  })),
-);
-
-const mutationWithRLS = customMutation(
-  mutation,
-  customCtx(async (ctx) => ({
-    db: wrapDatabaseWriter(ctx, ctx.db, await rlsRules(ctx), config),
-  })),
-);
+export const queryWithRLS = customQuery(query, customCtx(async (ctx) => ({
+  db: wrapDatabaseReader(ctx, ctx.db, await rules(ctx), config),
+})));
+export const mutationWithRLS = customMutation(mutation, customCtx(async (ctx) => ({
+  db: wrapDatabaseWriter(ctx, ctx.db, await rules(ctx), config),
+})));
 ```
 
-## Zod Validation
+Watch the default: without `defaultPolicy: "deny"`, any table you forgot to list is fully open.
 
-Use Zod for argument validation (import from `convex-helpers/server/zod4` for Zod 4):
+## Zod-validated functions
+
+Import from the entry point that matches your Zod major version: `convex-helpers/server/zod4` for Zod 4, `convex-helpers/server/zod3` for Zod 3. The peer range is `zod ^3.25.0 || ^4.0.0`.
 
 ```ts
 import * as z from "zod";
 import { zCustomQuery, zid } from "convex-helpers/server/zod4";
 import { NoOp } from "convex-helpers/server/customFunctions";
+import { query } from "./_generated/server";
 
-const zodQuery = zCustomQuery(query, NoOp);
+const zQuery = zCustomQuery(query, NoOp); // any customization works here, not only NoOp
 
-export const myComplexQuery = zodQuery({
+export const search = zQuery({
   args: {
-    userId: zid("users"),
+    userId: zid("users"),             // typed Convex Id
     email: z.email(),
-    num: z.number().min(0),
-    nullableBigint: z.nullable(z.bigint()),
-    boolWithDefault: z.boolean().default(true),
-    array: z.array(z.string()),
-    optionalObject: z.object({ a: z.string(), b: z.number() }).optional(),
-    union: z.union([z.string(), z.number()]),
-    discriminatedUnion: z.discriminatedUnion("kind", [
-      z.object({ kind: z.literal("a"), a: z.string() }),
-      z.object({ kind: z.literal("b"), b: z.number() }),
-    ]),
+    limit: z.number().int().min(1).max(100).default(20),
   },
   handler: async (ctx, args) => {
-    // args validated and typed by Zod
+    // args are the Zod *output* types: limit is a number here, even if the client omitted it
   },
 });
 ```
 
-## Session Tracking
-
-Track users via client-side sessionID storage:
-
-**Client setup:**
-```tsx
-import { SessionProvider } from "convex-helpers/react/sessions";
-
-<ConvexProvider client={convex}>
-  <SessionProvider>
-    <App />
-  </SessionProvider>
-</ConvexProvider>;
-```
-
-**Client usage:**
-```ts
-import { useSessionQuery } from "convex-helpers/react/sessions";
-
-const results = useSessionQuery(api.myModule.mySessionQuery, { arg1: 1 });
-```
-
-**Server setup:**
-```ts
-import { customQuery } from "convex-helpers/server/customFunctions";
-import { SessionIdArg } from "convex-helpers/server/sessions";
-
-export const queryWithSession = customQuery(query, {
-  args: SessionIdArg,
-  input: async (ctx, { sessionId }) => {
-    const anonymousUser = await getAnonUser(ctx, sessionId);
-    return { ctx: { ...ctx, anonymousUser }, args: {} };
-  },
-});
-```
-
-## Richer useQuery
-
-Get status information from queries:
-
-```ts
-import { makeUseQueryWithStatus } from "convex-helpers/react";
-import { useQueries } from "convex/react";
-
-export const useQueryWithStatus = makeUseQueryWithStatus(useQueries);
-
-const { status, data, error, isSuccess, isPending, isError } =
-  useQueryWithStatus(api.foo.bar, { myArg: 123 });
-```
-
-## Validator Utilities
-
-Useful validator helpers:
-
-```ts
-import { literals, deprecated, brandedString, nullable } from "convex-helpers/validators";
-import { doc, typedV, partial } from "convex-helpers/validators";
-import { omit, pick } from "convex-helpers";
-
-// Branded string for type safety
-export const emailValidator = brandedString("email");
-export type Email = Infer<typeof emailValidator>;
-
-// Schema usage
-export default defineSchema({
-  accounts: defineTable({
-    balance: nullable(v.bigint()),
-    status: literals("active", "inactive"),
-    email: emailValidator,
-    oldField: deprecated,
-  }).index("status", ["status"]),
-});
-
-// Typed validator with schema awareness
-const vv = typedV(schema);
-
-export const replaceUser = internalMutation({
-  args: {
-    id: vv.id("accounts"),
-    replace: vv.object({
-      ...schema.tables.accounts.validator.fields,
-      ...partial(systemFields("accounts")),
-    }),
-  },
-  returns: doc(schema, "accounts"),
-  handler: async (ctx, args) => {
-    await ctx.db.replace(args.id, args.replace);
-    return await ctx.db.get(args.id);
-  },
-});
-
-// Pick/omit fields
-const balanceAndEmail = pick(vv.doc("accounts").fields, ["balance", "email"]);
-const accountWithoutBalance = omit(vv.doc("accounts").fields, ["balance"]);
-
-// Validate data
-import { validate } from "convex-helpers/validators";
-validate(balanceAndEmail, value);
-validate(balanceAndEmail, value, { throw: true });
-validate(vv.id("accounts"), accountId, { db: ctx.db }); // validates table
-```
-
-## Filter
-
-Apply arbitrary TypeScript filters to database queries:
-
-```ts
-import { filter } from "convex-helpers/server/filter";
-
-export const evens = query({
-  args: {},
-  handler: async (ctx) => {
-    return await filter(
-      ctx.db.query("counter_table"),
-      (c) => c.counter % 2 === 0,
-    ).collect();
-  },
-});
-```
-
-## Manual Pagination
-
-### getPage Helper
-
-```ts
-import { getPage } from "convex-helpers/server/pagination";
-
-// First page
-const { page, indexKeys, hasMore } = await getPage(ctx, {
-  table: "messages",
-});
-
-// Next page
-const { page: page2 } = await getPage(ctx, {
-  table: "messages",
-  startIndexKey: indexKeys[indexKeys.length - 1],
-});
-
-// Custom page size and index
-const { page } = await getPage(ctx, {
-  table: "users",
-  index: "by_name",
-  schema,
-  targetMaxRows: 1000,
-});
-
-// Fixed range
-const { page } = await getPage(ctx, {
-  table: "messages",
-  startIndexKey,
-  endIndexKey,
-});
-```
-
-### paginator Helper
-
-Drop-in replacement for `.paginate()` that can be called multiple times per query:
-
-```ts
-import { paginator } from "convex-helpers/server/pagination";
-import schema from "./schema";
-
-export const list = query({
-  args: { opts: paginationOptsValidator },
-  handler: async (ctx, { opts }) => {
-    return await paginator(ctx.db, schema).query("messages").paginate(opts);
-  },
-});
-
-// With index and order
-export const list = query({
-  args: { opts: paginationOptsValidator, author: v.id("users") },
-  handler: async (ctx, { opts, author }) => {
-    return await paginator(ctx.db, schema)
-      .query("messages")
-      .withIndex("by_author", (q) => q.eq("author", author))
-      .order("desc")
-      .paginate(opts);
-  },
-});
-```
-
-## Composable QueryStreams
-
-Combine queries with UNION ALL, WHERE, and JOIN operations:
-
-```ts
-import { stream, mergedStream, MergedStream } from "convex-helpers/server/stream";
-
-// Merge multiple streams
-const authorStreams = authors.map((author) =>
-  stream(ctx.db, schema)
-    .query("messages")
-    .withIndex("by_author", (q) => q.eq("author", author)),
-);
-const allAuthorsStream = mergedStream(authorStreams, ["author", "_creationTime"]);
-return await allAuthorsStream.paginate(paginationOpts);
-
-// Filter with predicate
-const filtered = stream(ctx.db, schema)
-  .query("messages")
-  .order("desc")
-  .filterWith(async (message) => {
-    const author = await ctx.db.get(message.author);
-    return author !== null && author.verified;
-  });
-return await filtered.paginate({ ...paginationOpts, maximumRowsRead: 100 });
-
-// Join tables with flatMap
-const messages = channels.flatMap(async (channel) =>
-  stream(ctx.db, schema)
-    .query("messages")
-    .withIndex("channelId", q => q.eq("channelId", channel._id))
-    .map(async (message) => ({ ...channel, ...message })),
-  ["channelId", "_creationTime"]
-);
-```
-
-## Query Caching
-
-Persist subscriptions for faster reloading:
-
-```tsx
-import { ConvexQueryCacheProvider } from "convex-helpers/react/cache";
-// For Next.js: import from "convex-helpers/react/cache/provider";
-
-<ConvexClientProvider>
-  <ConvexQueryCacheProvider
-    expiration={300000}    // 5 minutes default
-    maxIdleEntries={250}   // default
-    debug={false}          // default
-  >
-    {children}
-  </ConvexQueryCacheProvider>
-</ConvexClientProvider>
-```
-
-```ts
-import { useQuery } from "convex-helpers/react/cache";
-// For Next.js: import from "convex-helpers/react/cache/hooks";
-
-const users = useQuery(api.todos.getAll);
-```
+`zodToConvex` / `zodToConvexFields` turn a Zod schema into Convex validators (e.g. to reuse in `defineTable`). `convexToZod` goes the other way.
 
 ## Triggers
 
-Run functions whenever data changes via `ctx.db.insert`, `ctx.db.patch`, `ctx.db.replace`, or `ctx.db.delete`:
+Run code inside the same transaction whenever a table is changed through `ctx.db.insert/patch/replace/delete`.
 
 ```ts
-import { mutation as rawMutation } from "./_generated/server";
+import { mutation as rawMutation, internalMutation as rawInternalMutation } from "./_generated/server";
 import { DataModel } from "./_generated/dataModel";
 import { Triggers } from "convex-helpers/server/triggers";
 import { customCtx, customMutation } from "convex-helpers/server/customFunctions";
 
 const triggers = new Triggers<DataModel>();
 
-// Computed field
 triggers.register("users", async (ctx, change) => {
-  if (change.newDoc) {
-    const fullName = `${change.newDoc.firstName} ${change.newDoc.lastName}`;
-    if (change.newDoc.fullName !== fullName) {
-      await ctx.db.patch(change.id, { fullName });
-    }
+  // change.operation: "insert" | "update" | "delete"; also change.id, change.oldDoc, change.newDoc
+  if (change.operation === "delete") {
+    const owned = await ctx.db.query("messages").withIndex("owner", (q) => q.eq("owner", change.id)).collect();
+    for (const m of owned) await ctx.db.delete(m._id);
   }
 });
 
-// Denormalized count
-triggers.register("users", async (ctx, change) => {
-  const countDoc = (await ctx.db.query("userCount").unique())!;
-  if (change.operation === "insert") {
-    await ctx.db.patch(countDoc._id, { count: countDoc.count + 1 });
-  } else if (change.operation === "delete") {
-    await ctx.db.patch(countDoc._id, { count: countDoc.count - 1 });
-  }
-});
-
-// Cascading deletes
-triggers.register("users", async (ctx, change) => {
-  await asyncMap(
-    await getManyFrom(ctx.db, "messages", "owner", change.id),
-    (message) => ctx.db.delete(message._id),
-  );
-});
-
-// Export wrapped mutation
 export const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
+export const internalMutation = customMutation(rawInternalMutation, customCtx(triggers.wrapDB));
 ```
 
-**Trigger semantics:**
-- Runs atomically with the data change in the same transaction
-- Use `ctx.innerDb` for writes without triggering more triggers
-- Errors thrown from `ctx.db.insert/patch/replace/delete` that caused the trigger
-- Triggers only run through wrapped mutations (use eslint rules to enforce)
+What to know:
 
-## CRUD Utilities
+- Triggers only fire for mutations built from the wrapped builders. Raw `mutation`, dashboard edits and `npx convex import` skip them. Ban the raw import with an ESLint `no-restricted-imports` rule.
+- Writes inside a trigger fire further triggers (processed as a queue). Guard against loops, or write through `ctx.innerDb` to skip triggers.
+- A trigger that throws makes the originating `ctx.db.*` call throw, and the mutation aborts unless you catch it. All triggers still run. The first error is rethrown and the others are logged.
+- Parallel writes via `Promise.all` are serialized.
+- Components such as `@convex-dev/aggregate` expose a `.trigger()` you can `register`.
 
-Generate basic CRUD API for tables (recommended for prototyping or with RLS):
+## CRUD scaffolding
 
 ```ts
 import { crud } from "convex-helpers/server/crud";
-import schema from "./schema.js";
+import schema from "./schema";
 
-export const { create, read, update, destroy } = crud(schema, "users");
-
-// Usage in action:
-const user = await ctx.runQuery(internal.users.read, { id: userId });
-await ctx.runMutation(internal.users.update, {
-  id: userId,
-  patch: { status: "inactive" },
-});
+export const { create, read, update, destroy, paginate } = crud(schema, "users");
 ```
 
-## Hono Integration
+These are **internal** functions by default. Pass your own `query`/`mutation` builders as the 3rd/4th args to change that. Only do so behind RLS. `update` takes `{ id, patch }`.
 
-Use Hono for HTTP endpoints:
+## Validators
+
+```ts
+import { literals, nullable, deprecated, brandedString, typedV, doc, validate } from "convex-helpers/validators";
+import { pick } from "convex-helpers";
+import { Infer } from "convex/values";
+
+export const vEmail = brandedString("email");
+export type Email = Infer<typeof vEmail>;     // a string type that plain strings don't satisfy
+
+defineTable({
+  status: literals("active", "inactive"),     // union of literals
+  balance: nullable(v.number()),              // value or null
+  legacy: deprecated,                         // accepts anything at runtime, typed as null: marks a field for removal
+});
+
+const vv = typedV(schema);                     // v plus vv.id("table") and vv.doc("table") typed to your schema
+const accountDoc = doc(schema, "accounts");    // full doc incl. _id/_creationTime, e.g. for `returns`
+const justEmail = pick(vv.doc("accounts").fields, ["email"]);
+
+validate(justEmail, value);                         // boolean
+validate(justEmail, value, { throw: true });        // throws ValidationError
+validate(vv.id("accounts"), id, { db: ctx.db });    // also checks the id belongs to the table
+```
+
+Without `{ db }`, `validate` on an id validator only checks that the value is a string. `partial`, `systemFields` and `omit` round this out.
+
+## Filtering with arbitrary TypeScript
+
+```ts
+import { filter } from "convex-helpers/server/filter";
+
+const active = await filter(
+  ctx.db.query("users").withIndex("by_team", (q) => q.eq("teamId", teamId)),
+  async (u) => u.lastSeen > cutoff && (await isPaid(ctx, u)),
+).take(20);
+```
+
+This still scans documents, so narrow with an index first. Used with `.paginate()` it filters after the page is read, so pages can come back short or empty.
+
+## Manual pagination
+
+Built-in `.paginate()` allows one call per query. These lift that limit.
+
+- **`paginator(ctx.db, schema)`**: same chain as `ctx.db.query(...)` (`withIndex`, `order`, `paginate`), callable many times per query. It supports `withIndex` but **not** `.filter`. It doesn't pin the end cursor, so in reactive UIs pages can gap or overlap. Use `usePaginatedQuery` from `convex-helpers/react` on the client for gapless pages.
+- **`getPage(ctx, { table, index?, schema?, startIndexKey?, startInclusive?, endIndexKey?, endInclusive?, order?, targetMaxRows?, absoluteMaxRows? })`**: returns `{ page, indexKeys, hasMore }`. Pass the last `indexKeys` entry as the next `startIndexKey`. When you name an `index`, also pass `schema` so it can find the index fields.
+
+## Query streams (union, filter, join, then paginate)
+
+A stream is an ordered async iterable built with the same syntax as `ctx.db.query`. You can combine streams and still end with `.first()`, `.take(n)`, `.collect()` or `.paginate()`.
+
+```ts
+import { stream, mergedStream } from "convex-helpers/server/stream";
+import schema from "./schema";
+
+// UNION: messages from several authors, interleaved by the index order
+const perAuthor = authorIds.map((a) =>
+  stream(ctx.db, schema).query("messages").withIndex("by_author", (q) => q.eq("author", a)),
+);
+const merged = mergedStream(perAuthor, ["author", "_creationTime"]);
+
+// WHERE with any async predicate, applied before page sizing
+const verified = merged.filterWith(async (m) => (await ctx.db.get(m.author))?.verified === true);
+
+return await verified.paginate({ ...paginationOpts, maximumRowsRead: 500 });
+```
+
+- `.map(fn)` transforms items and keeps the order. `.flatMap(fn, indexFields)` expands each item into a sub-stream (a JOIN).
+- `mergedStream(streams, fields)` needs every input stream ordered by those fields.
+- `filterWith` with a selective predicate can read a lot. Cap it with `maximumRowsRead`.
+- Same reactive-pagination caveat as `paginator`: use the `convex-helpers/react` `usePaginatedQuery` (or `customPagination: true` on the cached version).
+
+## React
+
+**Query cache.** It keeps subscriptions alive after components unmount, so navigating back is instant. This costs more bandwidth, not less.
+
+```tsx
+import { ConvexQueryCacheProvider, useQuery } from "convex-helpers/react/cache";
+
+<ConvexProvider client={convex}>
+  <ConvexQueryCacheProvider expiration={300_000} maxIdleEntries={250}>
+    <App />
+  </ConvexQueryCacheProvider>
+</ConvexProvider>;
+
+const todos = useQuery(api.todos.list); // drop-in for convex/react useQuery
+```
+
+`expiration` defaults to 5 minutes and `maxIdleEntries` defaults to 250. For Next.js, import the provider from `convex-helpers/react/cache/provider` and the hooks from `convex-helpers/react/cache/hooks`.
+
+**Status-returning useQuery.** Create it once and reuse it:
+
+```ts
+import { makeUseQueryWithStatus } from "convex-helpers/react";
+import { useQueries } from "convex/react";
+export const useQueryWithStatus = makeUseQueryWithStatus(useQueries);
+// { status: "pending" | "success" | "error", data, error, isPending, isSuccess, isError }
+```
+
+It returns the server error instead of throwing it.
+
+**Sessions** (track anonymous users without cookies). Wrap the app in `<SessionProvider>` inside `<ConvexProvider>`. Call `useSessionQuery` / `useSessionMutation` / `useSessionAction`, which add `sessionId` to args. On the server, build the wrappers with `customQuery(query, { args: SessionIdArg, input: async (ctx, { sessionId }) => ({ ctx: { ... }, args: {} }) })`.
+
+## HTTP actions
+
+**CORS.** `corsRouter` wraps an `httpRouter`, registers the OPTIONS preflight and adds the headers.
+
+```ts
+import { httpRouter } from "convex/server";
+import { httpAction } from "./_generated/server";
+import { corsRouter } from "convex-helpers/server/cors";
+
+const http = httpRouter();
+const cors = corsRouter(http, {
+  allowedOrigins: ["https://app.example.com"], // default ["*"]; can be an async (req) => string[]
+  allowCredentials: true,                      // default false
+  enforceAllowOrigins: true,                   // 403 for other origins; default false
+});
+cors.route({ path: "/api/items", method: "GET", handler: httpAction(async () => Response.json([])) });
+export default http;
+```
+
+Other options: `allowedMethods`, `allowedHeaders` (default `["Content-Type"]`), `exposedHeaders`, `browserCacheMaxAge` (default 86400), `debug`. Any of them can be overridden per route.
+
+**Hono.** Put this in `convex/http.ts`. Needs `hono` installed.
 
 ```ts
 import { Hono } from "hono";
@@ -507,114 +350,45 @@ import { HonoWithConvex, HttpRouterWithHono } from "convex-helpers/server/hono";
 import { ActionCtx } from "./_generated/server";
 
 const app: HonoWithConvex<ActionCtx> = new Hono();
-
-app.get("/", async (c) => {
-  return c.json("Hello world!");
-});
-
+app.get("/hello/:name", (c) => c.json({ hi: c.req.param("name") })); // c.env is the Convex ActionCtx
 export default new HttpRouterWithHono(app);
 ```
 
-## CORS Support
-
-Add CORS to httpAction routes:
+## Legacy helpers (if a project already uses them)
 
 ```ts
-import { corsRouter } from "convex-helpers/server/cors";
-import { httpRouter } from "convex/server";
-
-const http = httpRouter();
-const cors = corsRouter(http, {
-  allowedOrigins: ["http://localhost:8080"], // or function
-  allowedMethods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type"],
-  exposedHeaders: ["Custom-Header"],
-  allowCredentials: true,
-  browserCacheMaxAge: 60,
-  enforceAllowOrigins: true,
-  debug: true,
-});
-
-cors.route({
-  path: "/foo",
-  method: "GET",
-  handler: httpAction(async () => new Response("ok")),
-});
-
-export default http;
-```
-
-## Action Retries
-
-Retry idempotent actions (prefer `@convex-dev/action-retrier` component):
-
-```ts
-import { makeActionRetrier } from "convex-helpers/server/retries";
-
-export const { runWithRetries, retry } = makeActionRetrier("utils:retry");
-
-export const myMutation = mutation({
-  args: {...},
-  handler: async (ctx, args) => {
-    await runWithRetries(ctx, internal.myModule.myAction, { arg1: 123 });
-  }
-});
-```
-
-## Stateful Migrations
-
-Run migrations with state persistence (prefer `@convex-dev/migrations` component):
-
-```ts
-import { migration } from "convex-helpers/server/migrations";
-
-export const myMigration = migration({
+// migrations: build the wrapper first. There is no bare `migration` export.
+import { makeMigration } from "convex-helpers/server/migrations";
+import { internalMutation } from "./_generated/server";
+const migration = makeMigration(internalMutation, { migrationTable: "migrations" }); // option optional
+export const backfill = migration({
   table: "users",
-  migrateOne: async (ctx, doc) => {
-    await ctx.db.patch(doc._id, { newField: "value" });
-  },
+  migrateOne: async (ctx, doc) => { if (doc.plan === undefined) await ctx.db.patch(doc._id, { plan: "free" }); },
 });
+// if you pass migrationTable, add `migrations: migrationsTable` to your schema
+
+// retries: pass the path of the exported `retry` action
+import { makeActionRetrier } from "convex-helpers/server/retries";
+export const { runWithRetries, retry } = makeActionRetrier("utils:retry");
 ```
 
-## Rate Limiting
+Rate limiting: `defineRateLimits({...})` in `convex-helpers/server/rateLimit` (needs `rateLimitTables` in your schema). New code should use `@convex-dev/rate-limiter`.
 
-Configure rate limits (prefer `@convex-dev/rate-limiter` component):
+## CLI
 
-See `convex-helpers/server/rateLimit.ts` for implementation details.
-
-## CLI Utilities
-
-### TypeScript API Generation
-
-Generate typed API objects for external repositories:
+Run from the project with the Convex functions. Both commands read from the dev deployment by default. Add `--prod` for production.
 
 ```bash
-npx convex-helpers ts-api-spec        # dev deployment
-npx convex-helpers ts-api-spec --prod # production
-```
-
-### OpenAPI Spec Generation
-
-Generate OpenAPI spec for non-JS clients:
-
-```bash
-npx convex-helpers open-api-spec        # dev deployment
-npx convex-helpers open-api-spec --prod # production
+npx convex-helpers ts-api-spec     # writes convexApi<timestamp>.ts: typed `api` for use in another repo (includes internal functions; prune them)
+npx convex-helpers open-api-spec   # writes convex-spec-<timestamp>.yaml: OpenAPI for non-JS clients or tools like Retool
 ```
 
 ## Standard Schema
 
-Convert Convex validators to Standard Schema:
-
 ```ts
 import { toStandardSchema } from "convex-helpers/standardSchema";
-
-const standardValidator = toStandardSchema(
-  v.object({
-    name: v.string(),
-    age: v.number(),
-  }),
-);
-
-standardValidator["~standard"].validate({ name: "John", age: 30 });
+const nameSchema = toStandardSchema(v.object({ name: v.string() }));
+nameSchema["~standard"].validate({ name: "Ada" });
 ```
+
+Use it to pass Convex validators to libraries that accept Standard Schema, such as form libraries.

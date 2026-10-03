@@ -1,13 +1,13 @@
 ---
 name: convex-ai-gateway
-description: Call AI models from Convex actions through the Convex AI Gateway, with no provider accounts or API keys. Covers @convex-dev/ai-sdk-provider (convexGateway) with the Vercel AI SDK, the OpenAI SDK pointed at the gateway, the Convex Agent and RAG components, embeddings for vector search, Jev decisions, image and video generation, local dev, errors, and billing/spend limits. Use when adding AI chat, summaries, RAG, embeddings, classification, or media generation to a Convex app, when swapping models, or when debugging AiGatewayDisabled, AiGatewayUnavailable, getServiceToken, or gateway 4xx/5xx errors. Triggers on "AI Gateway", "convex gateway", convexGateway, @convex-dev/ai-sdk-provider, getServiceToken("ai-gateway"), ai-gateway.convex.dev.
+description: Call AI models from Convex actions through the Convex AI Gateway, with no provider accounts or API keys. Covers @convex-dev/ai-sdk-provider (convexGateway) with the Vercel AI SDK, the OpenAI SDK pointed at the gateway, the Convex Agent and RAG components, embeddings for vector search, classifying or scoring data with Jev via the alpha Decisions endpoint, image and video generation, local dev, errors, and billing/spend limits. Use when adding AI chat, summaries, RAG, embeddings, classification, or media generation to a Convex app, when swapping models, or when debugging AiGatewayDisabled, AiGatewayUnavailable, getServiceToken, or gateway 4xx/5xx errors. Triggers on "AI Gateway", "convex gateway", convexGateway, @convex-dev/ai-sdk-provider, getServiceToken("ai-gateway"), ai-gateway.convex.dev.
 ---
 
 # Convex AI Gateway
 
-Convex holds the provider credentials. Your **action** gets a short-lived, deployment-scoped token and calls any of hundreds of models. Usage lands on the Convex invoice at OpenRouter rates, no markup, attributed per project, deployment and function.
+Convex holds the provider credentials. Your **action** gets a short-lived, deployment-scoped token and calls any of hundreds of models. Usage lands on the Convex invoice at OpenRouter's rates, attributed per project and per function.
 
-Synced against docs.convex.dev/ai-gateway on 2026-09-22. The gateway is new and parts are alpha. **Code and live docs win over this file.** Every docs page has a raw markdown version: append `.md` (e.g. `https://docs.convex.dev/ai-gateway/setup.md`).
+Synced against docs.convex.dev/ai-gateway on 2026-10-03. The gateway is new and parts are alpha. **Code and live docs win over this file.** Every docs page has a raw markdown version: append `.md` (e.g. `https://docs.convex.dev/ai-gateway/setup.md`).
 
 ## Requirements
 
@@ -15,7 +15,7 @@ Synced against docs.convex.dev/ai-gateway on 2026-09-22. The gateway is new and 
 - `convex` **1.45+** (**1.46+** for local dev).
 - Calls run only inside **actions** (`action` / `internalAction`), never queries or mutations.
 - Node actions (`"use node"`): set `"node": { "nodeVersion": "22" }` (or `"24"`) in `convex.json`. The default runtime needs nothing.
-- AI SDK path: `@convex-dev/ai-sdk-provider` **0.2.0+**, `ai` **7.0.105+**.
+- AI SDK path: `@convex-dev/ai-sdk-provider` **0.2.1+**, `ai` **7.0.105+**.
 
 ## Pick an interface
 
@@ -34,7 +34,7 @@ Synced against docs.convex.dev/ai-gateway on 2026-09-22. The gateway is new and 
 ## AI SDK (default)
 
 ```bash
-npm install @convex-dev/ai-sdk-provider@^0.2.0 ai
+npm install @convex-dev/ai-sdk-provider@^0.2.1 ai
 ```
 
 ```ts

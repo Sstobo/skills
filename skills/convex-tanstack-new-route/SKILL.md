@@ -15,11 +15,11 @@ connected to the `QueryClient`, both available as `context.queryClient` and
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { convexQuery } from '@convex-dev/react-query'
-import { api } from 'convex/_generated/api'
+import { api } from '../../convex/_generated/api' // adjust to your layout
 
 export const Route = createFileRoute('/things')({
   loader: ({ context }) =>
-    context.queryClient.ensureQueryData(convexQuery(api.things.list, {})),
+    context.queryClient.query({ ...convexQuery(api.things.list, {}), staleTime: 'static' }),
   component: Things,
 })
 
@@ -31,9 +31,13 @@ function Things() {
 
 - `convexQuery(fn, args)` is the query key and query function in one. Use the
   identical call in the loader and the component, or the cache misses.
-- `ensureQueryData` blocks the loader until data exists, so SSR renders it and
-  there is no loading flash. `prefetchQuery` without `await` starts the fetch
-  and lets the page render; pair it with `useQuery` and handle `isPending`.
+- Returning (or awaiting) `queryClient.query({ ...convexQuery(...), staleTime: 'static' })`
+  blocks the loader until data exists, so SSR renders it and there is no
+  loading flash. `void queryClient.query(convexQuery(...)).catch(noop)` starts
+  the fetch and lets the page render; pair it with `useQuery` and handle
+  `isPending`. `queryClient.query` needs `@tanstack/react-query` 5.102.0+; on
+  older versions use `ensureQueryData` / `prefetchQuery`, which still work
+  but are deprecated from 5.102.0.
 - After hydration the browser client resumes the subscription from where SSR
   left off. From then on Convex pushes every change.
 - Convex data is never stale: `staleTime` is already `Infinity`. Do not
@@ -42,7 +46,9 @@ function Things() {
   component unmounts, so navigating back is instant. Lower `gcTime` on a
   query if that idle activity is unwanted.
 - Query depends on a value that may be missing? Keep the hook call
-  unconditional and gate it: `useQuery({ ...convexQuery(fn, args), enabled: !!id })`.
+  unconditional and pass `"skip"` as the args:
+  `useQuery(convexQuery(api.things.get, id ? { id } : 'skip'))`. `convexQuery`
+  turns `"skip"` into `enabled: false`.
 
 ## Writing data
 
@@ -75,6 +81,6 @@ Plain `convex/react` hooks still work alongside these when a feature needs them.
 ## Convex side
 
 Nothing route-specific. A `query` or `mutation` in `convex/*.ts` with `args`
-and `returns` validators, reached through `api`. Follow
-`convex/_generated/ai/guidelines.md` for schema, indexes and auth inside
-handlers.
+and `returns` validators, reached through `api`. If the project has
+`convex/_generated/ai/guidelines.md` (written by `npx convex ai-files install`),
+follow it for schema, indexes and auth inside handlers.

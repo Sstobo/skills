@@ -20,8 +20,10 @@ Gather, then put it in the prompt:
 
 - **The ask.** What the user wanted, in their words.
 - **The files.** Every file this session created, changed, or deleted, by
-  path. Only these. Other agents work in this tree too; their changes are not
-  under review.
+  path. Only these. If other agents work in this tree too, their changes are
+  not under review.
+- **The commits.** Hashes of any commits this session made, so the reviewer
+  can see work that is no longer in the uncommitted diff.
 - **The standards.** Paths to the project's CLAUDE.md / AGENTS.md, any docs
   covering the touched area, and lint / type / test config.
 - **What was verified.** Checks you ran and their results. What you didn't
@@ -31,15 +33,18 @@ Gather, then put it in the prompt:
 ## 2. Send the reviewer
 
 One `Agent` call, `general-purpose`, foreground (`run_in_background: false`).
+That is Claude Code's subagent tool; in another harness use its equivalent
+fresh-context subagent, and wait for the result.
 Prompt: the brief, then this:
 
 > You are a skeptical senior engineer doing a quick check of a colleague's
 > work. Read-only: do not edit, create, or delete anything.
 >
-> Read the diff for the listed files (`git diff` / `git status`, or read new
-> files whole) and enough surrounding code to judge it. Read the listed
-> standards. Run the project's fast checks (typecheck, lint, tests for the
-> touched files) if they exist; skip slow suites.
+> Read the diff for the listed files (`git diff` / `git status`, `git show`
+> for any listed commits, or read new files whole) and enough surrounding
+> code to judge it. Read the listed standards. Run the project's fast checks
+> (typecheck, lint, tests for the touched files) if they exist; skip slow
+> suites.
 >
 > Look for:
 > - It doesn't do what was asked, or only partly does.

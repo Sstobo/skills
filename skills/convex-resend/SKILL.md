@@ -1,310 +1,274 @@
 ---
 name: convex-resend
-description: This skill provides comprehensive documentation using Resend with Convex Database. This uses the Resend component for Convex.
+description: >-
+  Send transactional email from a Convex app with the @convex-dev/resend
+  component. Covers install and convex.config.ts, RESEND_API_KEY, sendEmail
+  from mutations or actions, testMode and Resend test addresses, templates,
+  React Email, idempotency keys, status/cancel, the webhook route and
+  RESEND_WEBHOOK_SECRET, onEmailEvent handlers, data cleanup crons, and
+  sendEmailManually for attachments. Use when adding email to a Convex app or
+  debugging emails that never send, stay queued, or never report delivery.
 ---
 
-# Resend Docs
+# Resend with Convex (`@convex-dev/resend`)
 
-## Instructions
+Checked against `@convex-dev/resend` **0.2.8** (npm, 2026-10-03; peers `convex ^1.43.0` and `convex-helpers ^0.1.106`). Source of truth: https://github.com/get-convex/resend (README and `src/client/index.ts`). If this file and the installed package disagree, the package wins.
 
-- learn the following docs:
+What the component does for you: it queues sends in your database, batches them to Resend's `/emails/batch` endpoint, retries with backoff through a workpool, sends Resend idempotency keys so a retried batch isn't delivered twice, and stays under Resend's rate limit. You call one method from a mutation or action and it returns immediately.
 
-## The Docs:
+## Setup
 
+```bash
+npm install @convex-dev/resend
+npx convex env set RESEND_API_KEY re_...
+```
 
-Get Started#
-Create a Resend account and grab an API key. Set it to RESEND_API_KEY in your deployment environment.
-
-Next, add the component to your Convex app via convex/convex.config.ts:
-
+```ts
+// convex/convex.config.ts
 import { defineApp } from "convex/server";
 import resend from "@convex-dev/resend/convex.config.js";
 
 const app = defineApp();
 app.use(resend);
-
 export default app;
+```
 
-Then you can use it, as we see in convex/sendEmails.ts:
-
+```ts
+// convex/email.ts
 import { components } from "./_generated/api";
 import { Resend } from "@convex-dev/resend";
+
+export const resend: Resend = new Resend(components.resend, {
+  testMode: false, // see "Test mode" below. Leave it out while developing.
+});
+```
+
+Options (all optional):
+
+| Option | Default | Notes |
+|---|---|---|
+| `apiKey` | `process.env.RESEND_API_KEY` | `sendEmail` throws "API key is not set" if both are empty |
+| `webhookSecret` | `process.env.RESEND_WEBHOOK_SECRET` | Needed only for the webhook route |
+| `testMode` | **`true`** | Only Resend test addresses are accepted |
+| `onEmailEvent` | none | Mutation reference called on each webhook event |
+| `initialBackoffMs` | `30000` | First retry delay for failed API calls |
+| `retryAttempts` | `5` | |
+
+## Sending
+
+`sendEmail` works with a mutation or action `ctx` (not a query). It enqueues the email and returns an `EmailId`. Delivery happens in the background, so sending from a mutation is fine and is atomic with your other writes.
+
+```ts
 import { internalMutation } from "./_generated/server";
+import { v } from "convex/values";
+import { resend } from "./email";
 
-export const resend: Resend = new Resend(components.resend, {});
-
-export const sendTestEmail = internalMutation({
-  handler: async (ctx) => {
-    await resend.sendEmail(ctx, {
-      from: "Me <test@mydomain.com>",
-      to: "delivered@resend.dev",
-      subject: "Hi there",
-      html: "This is a test email",
+export const sendWelcome = internalMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db.get(userId);
+    if (!user) return;
+    const emailId = await resend.sendEmail(ctx, {
+      from: "Acme <hello@mail.acme.com>",   // must be on a domain you verified in Resend
+      to: user.email,                       // string or string[]
+      subject: "Welcome to Acme",
+      html: `<p>Hi ${user.name}</p>`,       // and/or text
+      idempotencyKey: `welcome:${userId}`,  // optional, see below
     });
+    await ctx.db.patch(userId, { welcomeEmailId: emailId });
   },
 });
+```
 
-Then, calling sendTestEmail from anywhere in your app will send this test email.
+Other fields: `cc`, `bcc` (string or array), `replyTo` (array), `headers` (array of `{ name, value }`). An older positional form `sendEmail(ctx, from, to, subject, html?, text?, replyTo?, headers?)` also exists.
 
-If you want to send emails to real addresses, you need to disable testMode. You can do this in ResendOptions, as detailed below.
+Content rules, enforced when you enqueue:
 
-A note on test email addresses: Resend allows the use of labels for test emails. For simplicity, this component only allows labels matching [a-zA-Z0-9_-]*, e.g. delivered+user-1@resend.dev.
+- You need `html` or `text`, or a `template`. Supplying neither throws.
+- `template` and `html`/`text` together throws.
+- `subject` is required unless you use a template.
 
-Advanced Usage#
-Setting up a Resend webhook#
-While the setup we have so far will reliably send emails, you don't have any feedback on anything delivering, bouncing, or triggering spam complaints. For that, we need to set up a webhook!
+**Templates** from the Resend dashboard:
 
-On the Convex side, we need to mount an http endpoint to our project to route it to the Resend component in convex/http.ts:
+```ts
+await resend.sendEmail(ctx, {
+  from: "Acme <hello@mail.acme.com>",
+  to: user.email,
+  template: { id: "welcome-v2", variables: { name: user.name, plan: "pro" } }, // values: string | number
+});
+```
 
+**Idempotency at enqueue.** The component's built-in keys only stop a batch being delivered twice. They don't stop your code enqueueing the same email twice, for example when an action retries. Pass `idempotencyKey` and a second `sendEmail` with the same key returns the first `EmailId` without sending. Concurrent calls are safe because the check runs in the same mutation.
+
+## Test mode
+
+`testMode` defaults to `true`. In test mode every `to`, `cc` and `bcc` must be a Resend test inbox:
+
+- `delivered@resend.dev`, `bounced@resend.dev`, `complained@resend.dev`
+- each with an optional `+label` where the label is `[a-zA-Z0-9_-]*` (e.g. `delivered+signup-42@resend.dev`)
+
+Anything else throws `Test mode is enabled, but email address is not a valid resend test address`. Set `testMode: false` to send to real people. A common pattern is to make it environment-driven, e.g. `testMode: process.env.EMAIL_TEST_MODE !== "false"`, and set that env var only on prod.
+
+## Status, cancel, lookup
+
+```ts
+const s = await resend.status(ctx, emailId); // query, mutation or action ctx; null if unknown
+// s.status: "waiting" | "queued" | "cancelled" | "sent" | "delivered" | "delivery_delayed" | "bounced" | "failed"
+// flags: s.bounced, s.failed, s.complained, s.deliveryDelayed, s.opened, s.clicked; s.errorMessage
+
+await resend.cancelEmail(ctx, emailId); // mutation or action ctx
+const full = await resend.get(ctx, emailId); // from/to/subject/html/text/template/resendId/timestamps...
+```
+
+- Status stops at `"sent"` unless the webhook is set up. Delivery, bounce, complaint, open and click data all arrive through it.
+- Cancelling only works while the email is still `waiting` or `queued`. Once it has gone to Resend it can't be recalled. Cancelling doesn't fire `onEmailEvent`.
+- Store the `EmailId` on your own document if you need to look it up later or match it in an event handler.
+
+## Webhook (delivery events)
+
+1. Route Resend's webhook to the component:
+
+```ts
+// convex/http.ts
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { resend } from "./sendEmails";
+import { resend } from "./email";
 
 const http = httpRouter();
-
 http.route({
   path: "/resend-webhook",
   method: "POST",
-  handler: httpAction(async (ctx, req) => {
-    return await resend.handleResendEventWebhook(ctx, req);
-  }),
+  handler: httpAction(async (ctx, req) => resend.handleResendEventWebhook(ctx, req)),
 });
-
 export default http;
+```
 
-If our Convex project is happy-leopard-123, we now have a Resend webhook for our project running at https://happy-leopard-123.convex.site/resend-webhook.
+2. In the Resend dashboard, add a webhook pointing at `https://<your-deployment>.convex.site/resend-webhook` (the `.site` URL, not `.cloud`) and enable the `email.*` events. Other event types are ignored.
+3. Copy the signing secret: `npx convex env set RESEND_WEBHOOK_SECRET whsec_...`. Do this on each deployment (dev and prod) that has its own webhook.
 
-So navigate to the Resend dashboard and create a new webhook at that URL. Make sure to enable all the email.* events; the other event types will be ignored.
+The handler verifies the Svix signature and throws "Webhook secret is not set" if the secret is missing. Handled event types are `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.failed`, `email.opened` and `email.clicked`. Opens and clicks only arrive if tracking is enabled on your Resend domain.
 
-Finally, copy the webhook secret out of the Resend dashboard and set it to the RESEND_WEBHOOK_SECRET environment variable in your Convex deployment.
+## Reacting to events
 
-You should now be seeing email status updates as Resend makes progress on your batches!
-
-Speaking of...
-
-Registering an email status event handler.#
-If you have your webhook established, you can also register an event handler in your apps you get notifications when email statuses change.
-
-Update your sendEmails.ts to look something like this:
-
+```ts
 import { components, internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
-import { vEmailId, vEmailEvent, Resend } from "@convex-dev/resend";
+import { Resend, vOnEmailEventArgs } from "@convex-dev/resend";
 
 export const resend: Resend = new Resend(components.resend, {
-  onEmailEvent: internal.example.handleEmailEvent,
+  onEmailEvent: internal.email.onEmailEvent,
 });
 
-export const handleEmailEvent = internalMutation({
-  args: vOnEmailEventArgs,
-  handler: async (ctx, args) => {
-    // Handle however you want
-    // args provides { id: EmailId; event: EmailEvent; }
-    // see /example/example.ts
+export const onEmailEvent = internalMutation({
+  args: vOnEmailEventArgs, // { id: EmailId, event: EmailEvent }
+  handler: async (ctx, { id, event }) => {
+    if (event.type === "email.bounced" || event.type === "email.complained") {
+      // e.g. find the user whose welcomeEmailId === id and flag the address
+    }
   },
 });
+```
 
-Check out the example/ project in this repo for a full demo.
+Also exported: `vEmailId`, `vEmailEvent`, `vStatus`, and the types `EmailId`, `EmailEvent`, `Status`.
 
-Resend component options, and going into production#
-There is a ResendOptions argument to the component constructor to help customize it's behavior.
+## Cleanup
 
-Check out the docstrings, but notable options include:
+The component keeps every email and its content in its own tables until you remove them. Two component mutations do the cleanup:
 
-apiKey: Provide the Resend API key instead of having it read from the environment variable.
-webhookSecret: Same thing, but for the webhook secret.
-testMode: Only allow delivery to test addresses. To keep you safe as you develop your project, testMode is default true. You need to explicitly set this to false for the component to allow you to enqueue emails to artibrary addresses.
-onEmailEvent: Your email event callback, as outlined above! Check out the docstrings for details on the events that are emitted.
-Optional email sending parameters#
-In addition to basic from/to/subject and html/plain text bodies, the sendEmail method allows you to provide a list of replyTo addresses, and other email headers.
+- `cleanupOldEmails({ olderThan? })` removes finalized emails (delivered, bounced, cancelled and so on). Default age is 7 days.
+- `cleanupAbandonedEmails({ olderThan? })` removes emails that never finalized. Default age is 30 days. If these build up, look for a bug.
 
-Using Resend Templates#
-You can use Resend templates to send emails with pre-designed templates from your Resend dashboard. To use a template, provide the template ID and any required template variables:
-
-await resend.sendEmail(ctx, {
-  from: "Me <test@mydomain.com>",
-  to: "delivered@resend.dev",
-  subject: "Welcome to our app",
-  template: {
-    id: "my-template-id",
-    variables: {
-      name: "John Doe",
-      verificationLink: "https://example.com/verify?token=abc123",
-    },
-  },
-});
-
-[!IMPORTANT] You cannot use both template and html/text in the same email. If you need to send dynamic HTML content, either use templates with template variables, or use the html/text fields directly (optionally with React Email).
-
-Tracking, getting status, and cancelling emails#
-The sendEmail method returns a branded type, EmailId. You can use this for a few things:
-
-To reassociate the original email during status changes in your email event handler.
-To check on the status any time using resend.status(ctx, emailId).
-To cancel the email using resend.cancelEmail(ctx, emailId).
-If the email has already been sent to the Resend API, it cannot be cancelled. Cancellations do not trigger an email event.
-
-Checking email status programmatically#
-Use the status method to check an email's current state:
-
-const emailStatus = await resend.status(ctx, emailId);
-if (emailStatus) {
-  console.log(emailStatus.status); // e.g., "delivered", "bounced", "sent"
-  console.log(emailStatus.bounced); // boolean
-  console.log(emailStatus.failed); // boolean
-  console.log(emailStatus.complained); // spam complaint (boolean)
-  console.log(emailStatus.deliveryDelayed); // boolean
-  console.log(emailStatus.opened); // if open tracking enabled (boolean)
-  console.log(emailStatus.clicked); // if click tracking enabled (boolean)
-  console.log(emailStatus.errorMessage); // error details (string | null)
-}
-
-Viewing emails and webhook events in the dashboard#
-You can view all email data directly in your Convex dashboard in the component's data view. Click the drop down with a puzzle piece that says app:
-
-Component tables screenshot
-
-Emails table: Navigate to your Convex dashboard → Data. Choose resend from the component drop down then choose the emails table. This shows all emails with their current status, recipients, subjects, and tracking information.
-
-Delivery Events table: Navigate to Components → resend → deliveryEvents table. This table stores all webhook events received from Resend, including:
-
-emailId: Links back to the email in the emails table
-resendId: Resend's ID for the email
-eventType: The type of event (e.g., email.delivered, email.bounced, email.opened, email.clicked, email.complained)
-createdAt: When the event occurred
-message: Additional details (e.g., bounce reasons) This is useful for debugging delivery issues, viewing email history, and understanding what happened with each email you sent.
-Data retention#
-This component retains "finalized" (delivered, cancelled, bounced) emails. It's your responsibility to clear out those emails on your own schedule. You can run cleanupOldEmails and cleanupAbandonedEmails from the dashboard, under the "resend" component tab in the function runner, or set up a cron job.
-
-If you pass no argument, it defaults to deleting emails older than 7 days.
-
-If you don't care about historical email status, the recommended approach is to use a cron job, as shown below:
-
-// in convex/crons.ts
+```ts
+// convex/crons.ts
 import { cronJobs } from "convex/server";
-import { components, internal } from "./_generated/api.js";
-import { internalMutation } from "./_generated/server.js";
+import { components, internal } from "./_generated/api";
+import { internalMutation } from "./_generated/server";
 
-const crons = cronJobs();
-crons.interval(
-  "Remove old emails from the resend component",
-  { hours: 1 },
-  internal.crons.cleanupResend,
-);
-
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const DAY = 24 * 60 * 60 * 1000;
 export const cleanupResend = internalMutation({
   args: {},
   handler: async (ctx) => {
-    await ctx.scheduler.runAfter(0, components.resend.lib.cleanupOldEmails, {
-      olderThan: ONE_WEEK_MS,
-    });
-    await ctx.scheduler.runAfter(
-      0,
-      components.resend.lib.cleanupAbandonedEmails,
-      // These generally indicate a bug, so keep them around for longer.
-      { olderThan: 4 * ONE_WEEK_MS },
-    );
+    await ctx.scheduler.runAfter(0, components.resend.lib.cleanupOldEmails, { olderThan: 7 * DAY });
+    await ctx.scheduler.runAfter(0, components.resend.lib.cleanupAbandonedEmails, { olderThan: 30 * DAY });
   },
 });
 
+const crons = cronJobs();
+crons.interval("cleanup resend component", { hours: 1 }, internal.crons.cleanupResend);
 export default crons;
+```
 
-Using React Email#
-You can use React Email to generate your HTML for you from JSX.
+To inspect what's stored, open the Convex dashboard → Data, switch the component picker from `app` to `resend`, and look at the `emails` and `deliveryEvents` tables.
 
-First install the dependencies:
+## React Email
 
-npm install @react-email/components react react-dom react-email @react-email/render
+Render JSX to HTML, then pass it as `html`. `@react-email/render` needs Node, so the file must start with `"use node"` and the function must be an action. A Node file can only export actions, so put any mutations elsewhere.
 
-Then create a new .tsx file in your Convex directory e.g. /convex/emails.tsx:
+```bash
+npm install @react-email/components @react-email/render react react-dom
+```
 
-// IMPORTANT: this is a Convex Node Action
+```tsx
+// convex/emailRender.tsx
 "use node";
-import { action } from "./_generated/server";
-import { render, pretty } from "@react-email/render";
-import { Button, Html } from "@react-email/components";
-import { components } from "./_generated/api";
-import { Resend } from "@convex-dev/resend";
+import { internalAction } from "./_generated/server";
+import { v } from "convex/values";
+import { render } from "@react-email/render";
+import { Html, Button } from "@react-email/components";
+import { resend } from "./email";
 
-export const resend: Resend = new Resend(components.resend, {
-  testMode: false,
+export const sendReset = internalAction({
+  args: { to: v.string(), url: v.string() },
+  handler: async (ctx, { to, url }) => {
+    const html = await render(<Html><Button href={url}>Reset password</Button></Html>);
+    await resend.sendEmail(ctx, { from: "Acme <hello@mail.acme.com>", to, subject: "Reset your password", html });
+  },
 });
+```
 
-export const sendEmail = action({
+The `Resend` instance can live in a non-Node file (as in `convex/email.ts` above) and be imported here.
+
+## Attachments and other unbatchable features: `sendEmailManually`
+
+`sendEmail` can only use what Resend's batch endpoint supports, and that excludes attachments. For those, send through the `resend` SDK yourself. The component still records the email so status and webhooks work:
+
+```ts
+import { internalAction } from "./_generated/server";
+import { Resend as ResendSdk } from "resend";
+import { resend } from "./email";
+
+const sdk = new ResendSdk(process.env.RESEND_API_KEY);
+
+export const sendInvoice = internalAction({
   args: {},
-  handler: async (ctx, args) => {
-    // 1. Generate the HTML from your JSX
-    // This can come from a custom component in your /emails/ directory
-    // if you would like to view your templates locally. For more info see:
-    // https://react.email/docs/getting-started/manual-setup#5-run-locally
-    const html = await pretty(
-      await render(
-        <Html>
-          <Button
-            href="https://example.com"
-            style={{ background: "#000", color: "#fff", padding: "12px 20px" }}
-          >
-            Click me
-          </Button>
-        </Html>,
-      ),
-    );
-
-    // 2. Send your email as usual using the component
-    await resend.sendEmail(ctx, {
-      from: "Me <test@mydomain.com>",
-      to: "delivered@resend.dev",
-      subject: "Hi there",
-      html,
+  handler: async (ctx) => {
+    const from = "Acme <billing@mail.acme.com>";
+    const to = ["customer@example.com"];
+    const subject = "Your invoice";
+    await resend.sendEmailManually(ctx, { from, to, subject }, async (emailId) => {
+      const { data, error } = await sdk.emails.send({
+        from, to, subject,
+        html: "<p>Attached.</p>",
+        attachments: [{ filename: "invoice.pdf", content: pdfBase64 }],
+        headers: { "Idempotency-Key": emailId },
+      });
+      if (error) throw new Error(error.message);
+      return data!.id; // the callback must return Resend's email id
     });
   },
 });
+```
 
-[!WARNING] React Email requires some Node dependencies thus it must run in a Convex Node action and not a regular Action.
+`sendEmailManually` creates the record, runs your callback and marks the email `sent`. If the callback throws, it marks the email `failed` and rethrows. It bypasses the queue, so there is no retry and `testMode` isn't checked.
 
-Sending emails manually, e.g. for attachments#
-If you need something that the component doesn't provide (it is currently limited by what is supported by the batch API in Resend), you can send emails manually using sendEmailManually. Unlike sendEmail which enqueues emails and sends them in batches via the /emails/batch endpoint, sendEmailManually calls Resend's /emails endpoint directly without enqueueing. This gives you fine-grained control over the email sending process while still tracking its progress using the component's status and webhook APIs.
+## Troubleshooting
 
-import { components, internal } from "./_generated/api";
-import { internalAction } from "./_generated/server";
-import { Resend as ResendComponent } from "@convex-dev/resend";
-import { Resend } from "resend";
-
-const resendSdk = new Resend("re_xxxxxxxxx");
-
-export const resend = new ResendComponent(components.resend, {});
-
-export const sendManualEmail = internalAction({
-  args: {},
-  handler: async (ctx, args) => {
-    const from = "Acme <onboarding@resend.dev>";
-    const to = ["delivered@resend.dev"];
-    const subject = "hello world";
-    const html = "<p>it works!</p>";
-
-    const emailId = await resend.sendEmailManually(
-      ctx,
-      { from, to, subject },
-      async (emailId) => {
-        const {data, error} = await resendSdk.emails.send({
-          from,
-          to,
-          subject,
-          html,
-          headers: {
-            "Idempotency-Key": emailId,
-          },
-        });
-        if (error) {
-          throw new Error(`[Email] Failed to send: ${error.message}`);
-        }
-        return data.id!;
-      },
-    );
-  },
-});
-
-Use sendEmailManually when you need features not supported by the batch API, such as attachments, or when you want to send an email immediately without waiting for the batching system.
-
-## End of docs
+| Symptom | Likely cause |
+|---|---|
+| "Test mode is enabled, but email address is not a valid resend test address" | `testMode` still defaults to `true` |
+| "API key is not set" | `RESEND_API_KEY` missing on this deployment (`npx convex env list`) |
+| Emails stay `sent` forever | Webhook not set up, wrong URL (`.cloud` instead of `.site`), or `email.*` events not enabled |
+| Webhook returns 500 / "Webhook secret is not set" | `RESEND_WEBHOOK_SECRET` missing, or it's the secret from a different webhook |
+| Status `failed` with a 4xx `errorMessage` | Resend rejected the request (unverified `from` domain, bad address). Permanent errors aren't retried |
+| Duplicate emails | Your code enqueued twice. Add `idempotencyKey` |
+| Component tables growing without limit | No cleanup cron |

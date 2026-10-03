@@ -77,7 +77,7 @@ useQuery(convexQuery(api.users.get, userId ? { userId } : "skip"));
 Rules:
 - `useSuspenseQuery` for anything the page needs to render. It runs during the SSR pass.
 - `useQuery` for data that can arrive late without a layout jump.
-- Do not set `staleTime`, `refetch*`, `retry`, or call `invalidateQueries`. Convex data is never stale and updates arrive over the WebSocket. Those options are ignored.
+- Do not set `refetch*` or `retry` (ignored: Convex retries over its own WebSocket protocol) and do not call `invalidateQueries`. Convex data is never stale and updates arrive over the WebSocket. `convexQuery` already sets `staleTime: Infinity`; the one place you pass `staleTime` yourself is `"static"` on a loader's `queryClient.query` call (section 3).
 - `gcTime` is the only knob that matters: it is how long a subscription stays open after the last component unmounts (default 5 min). Lower it per query if you see subscriptions lingering.
 - Spread `convexQuery(...)` to add React Query options: `{ ...convexQuery(api.x.y, args), gcTime: 10_000 }`.
 - Pagination: use `usePaginatedQuery` from `convex/react` directly. It is not wrapped by react-query.
@@ -90,13 +90,15 @@ Loaders run on the server for the first page load and on the client for later na
 export const Route = createFileRoute("/tasks")({
   loader: async ({ context }) => {
     // Block render until data is ready (best for the primary query).
-    await context.queryClient.ensureQueryData(convexQuery(api.tasks.list, {}));
-    // Warm the cache without blocking (secondary data). No await.
-    context.queryClient.prefetchQuery(convexQuery(api.tasks.stats, {}));
+    await context.queryClient.query({ ...convexQuery(api.tasks.list, {}), staleTime: "static" });
+    // Warm the cache without blocking (secondary data). No await; swallow errors.
+    void context.queryClient.query(convexQuery(api.tasks.stats, {})).catch(noop);
   },
   component: Tasks,
 });
 ```
+
+`noop` is imported from `@tanstack/react-query`. `queryClient.query` needs `@tanstack/react-query` 5.102.0 or later. On older 5.x use `ensureQueryData` (blocking) and `prefetchQuery` (non-blocking); both still work but are deprecated from 5.102.0.
 
 For queries that depend on search params, declare `loaderDeps: ({ search }) => ({ page: search.page })` so the loader reruns when they change.
 
@@ -126,7 +128,9 @@ import { v } from "convex/values";
 
 export const list = query({
   args: { ownerId: v.id("users") },
-  returns: v.array(v.object({ _id: v.id("tasks"), text: v.string() })),
+  returns: v.array(
+    v.object({ _id: v.id("tasks"), _creationTime: v.number(), ownerId: v.id("users"), text: v.string() }),
+  ),
   handler: async (ctx, { ownerId }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Unauthorized");
@@ -146,7 +150,7 @@ export const list = query({
 
 ## 6. Gotchas
 
-- `createServerFn().inputValidator(fn).handler(...)`, not `.validator()`.
+- Server function input validation: current `@tanstack/react-start` (1.168.x, via `start-client-core` 1.170) uses `createServerFn().validator(fn).handler(...)` and marks `.inputValidator()` deprecated. Releases up to at least `start-client-core` 1.168.0 only have `.inputValidator()`. Check the installed types before picking one.
 - A query that fires before auth is set will error, not wait. Gate it with `"skip"` or the auth boundary from `better-auth-convex`.
 - Hot reload can leak subscriptions in dev. Harmless; it goes away on a full reload.
 - `@convex-dev/react-query` peers on `convex ^1.29` and `@tanstack/react-query ^5`. Check `package.json` before assuming an API exists.

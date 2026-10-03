@@ -22,7 +22,9 @@ const styles = stylex.create({
 <div {...stylex.props(styles.container)} />
 ```
 
-- Longhand properties and single-value shorthands only. Numbers are px.
+- Longhand properties and single-value shorthands only. Numbers are px for
+  lengths, ms for animation/transition durations and delays; unitless properties
+  (`lineHeight`, `opacity`, `zIndex`, `fontWeight`) stay unitless.
 - `null` unsets a property.
 - Merge by order, last wins: `stylex.props(styles.base, isActive && styles.active, style)`.
 - Component styles first, prop styles last, so the caller can override.

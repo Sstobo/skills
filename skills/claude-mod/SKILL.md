@@ -25,7 +25,7 @@ my-mod/
     └── register.js              # export function register(on, options) { ... }
 ```
 
-- Plugin `name` must not start with `claude-` (validate rejects Anthropic-looking names).
+- The mod's `plugin.json` `name` must not start with `claude-`, `anthropic-`, `anthropics-` or `cc-plugin-` (validate rejects Anthropic-looking names: `Plugin name "..." is reserved`). The rule is about the plugin manifest, not skill names like this one.
 - No build step. `.js .mjs .cjs .ts .mts .cts .jsx .tsx`, ES modules only.
 - `options` = the manifest's `userConfig` values with defaults.
 

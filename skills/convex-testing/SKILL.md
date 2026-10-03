@@ -46,7 +46,7 @@ describe("module.functionName", () => {
 - **Use `t.withIdentity`** to test authenticated functions — pass `{ name: "..." }` at minimum
 - **Use `t.fetch`** to test HTTP actions
 - **Use inline functions** with `t.mutation(async (ctx) => { ... })` to test helper functions that accept `MutationCtx`/`QueryCtx`/`ActionCtx`
-- **Pass `modules` glob** when using `t.run`, `t.fetch`, or scheduled functions:
+- **Pass a `modules` glob** when your functions are not in the default `convex/` folder (custom path in `convex.json`, monorepo layouts). Without it, `convex-test` globs `convex/**` itself; the official examples pass it anyway, which is harmless:
   ```ts
   const modules = import.meta.glob("./**/*.ts");
   const t = convexTest(schema, modules);
@@ -72,7 +72,7 @@ await expect(async () => {
 
 ### Mocking External APIs
 
-Use `vi.stubGlobal("fetch", ...)` to mock fetch calls in actions, then `vi.unstubAllGlobals()` to clean up.
+Use `vi.stubGlobal("fetch", ...)` to mock fetch calls in actions, then `vi.unstubAllGlobals()` to clean up. Mocking global `fetch` does not affect `t.fetch`. To override a global only inside one function call, assign to it inside the handler (`globalThis.Math = replacement`) rather than mutating it; see the reference.
 
 ## Best Practices
 

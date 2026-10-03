@@ -67,13 +67,15 @@ If no tracker exists and the user declined setup, skip ticket emission — the b
 
 ### The finding → ticket mapping
 
-Schema authority is `../ship-it/references/TICKET-FORMAT.md`. Scour writes a standard ticket and adds namespaced metadata — it does **not** fork ship-it's enum.
+Schema authority is `../ship-it/references/TRACKER.md` § Ticket File. Scour writes a standard ticket and adds namespaced metadata — it does **not** fork ship-it's enum.
 
 ```markdown
 ---
 slug: <kebab-from-title>                # unique; check `ls tickets/*/<slug>.md` first
 title: <imperative finding title>
 category: enhancement                   # best-effort: correctness/security → bug, else enhancement
+kind: afk
+priority: p1
 source: scour                           # marks a pre-analyzed intake ticket
 lens: file-size                         # the real classification scour found it under
 effort: L                               # S | M | L  (for the fix, incl. tests)
@@ -143,6 +145,8 @@ Lane: <agent | manual — scour's best guess; triage confirms>
 
 - <ISO8601>  created → needs-triage  [scour]
 ```
+
+`kind` and `priority` are scour's best guess; triage confirms them. `kind` must be present and exactly `afk` or `hitl`: ship-it's tracker lint (`verify.mjs lint`) flags any intake ticket without it.
 
 Acceptance criteria are **drafted, not final** — scour knows the done-state better than triage will (it found the problem and, for deepenings, designed the interface), so it writes the first cut; triage sharpens and signs off. Keep them concrete and independently testable; lean on the done-criteria/STOP-condition mindset (machine-checkable commands over prose like "works correctly").
 

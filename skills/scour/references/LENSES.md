@@ -2,7 +2,7 @@
 
 The five lenses below are scour's **default, always-on** set — its structural-quality core. Seven **opt-in** packs (Correctness/bugs, Security, Performance, Dependencies, DX, Docs, Direction) live in [EXTENDED-LENSES.md](EXTENDED-LENSES.md); switch them on at intake when the audit calls for breadth beyond structure.
 
-Each finder agent hunts with exactly one lens. A lens is a narrow question plus the criteria that turn an observation into a finding. Every finding must carry a `path:line` anchor and cite either a project doc or a principle below — generic advice with no anchor is not a finding. Assign one finder per lens; for a large area, split a lens across sub-areas (e.g. one Depth finder per top-level subdirectory).
+Each finder hunts with one lens, or a small group of related lenses when more than five are selected (see [SWARM.md](SWARM.md)). A lens is a narrow question plus the criteria that turn an observation into a finding. Every finding must carry a `path:line` anchor and cite either a project doc or a principle below — generic advice with no anchor is not a finding. Assign one finder per lens. Splitting a lens across sub-areas (e.g. one Depth finder per top-level subdirectory) is allowed only while the total stays within the 5-finder cap; past that, narrow the area with the user.
 
 The vocabulary (module, interface, seam, depth, leverage, locality, the deletion test) lives in [DEEPENING.md](DEEPENING.md). Read it before running the Depth or File-size lenses.
 

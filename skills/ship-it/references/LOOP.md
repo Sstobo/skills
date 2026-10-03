@@ -40,7 +40,7 @@ If `tickets/` is missing or has no status folders, stop and run Phase 0 (TRACKER
 Then run the verifier's preflight. It is the Tracker Lint plus every ticket a human has to decide on, one line each:
 
 ```bash
-node ~/.claude/skills/ship-it/scripts/verify.mjs preflight --repo .
+node <skill-dir>/scripts/verify.mjs preflight --repo .
 ```
 
 Every line it prints is either a lint violation to fix or a stale claim / dead review to act on per step 3. Exit 1 means it printed something. Do not claim until every line has been fixed, acted on, or explicitly reported to the user — field data showed later runs walking past dead reviews for weeks when this was prose.
@@ -138,7 +138,7 @@ This on-disk list is what makes the scope real. A set held only in working memor
 #### 2b — Get the reading list
 
 ```bash
-node ~/.claude/skills/ship-it/scripts/doc-ground.mjs \
+node <skill-dir>/scripts/doc-ground.mjs \
   --slug <slug> --title "<title>" --repo . -- \
   <scoped product paths...>
 ```
@@ -166,7 +166,7 @@ Record the frame in the ticket either way. Then ask yourself whether **any** of 
 
 **None of them?** Proceed straight to Step 3. The acceptance criteria were approved in Phase 2 and nothing here changes them. History line: `doc-grounded — no risk trigger, proceeding`.
 
-**Any of them?** Print the full ASCII box and stop. Present the decision with `AskUserQuestion`, three options, arrow-selectable:
+**Any of them?** Print the full ASCII box and stop. Present the decision with `AskUserQuestion` (Claude Code; elsewhere, the harness's multiple-choice tool or a numbered list), three options, arrow-selectable:
 
 1. **"<recommended course> (Recommended)"** — the frame as proposed, named concretely ("Fix all 4 findings + query.ts scope add"), never a bare "Confirm". History: `doc-grounding confirmed`, continue Step 3.
 2. **"<secondary course>"** — the best genuine alternative: narrower scope, defer an item, different sequencing. Also a confirm; the History line notes the variant.
@@ -199,10 +199,10 @@ Dispatch the batch's implementers **together in one message** so they run concur
 To delegate, pick the agent in this order:
 
 1. The ticket's `implementer` frontmatter field, if set.
-2. `tanstack-convex-agent` — only when the project is Convex + TanStack (a `convex/` directory at the repo root).
-3. `general-purpose` — every other stack.
+2. A project-specific implementer agent, if the project or user defines one for its stack.
+3. `general-purpose` — the default.
 
-Dispatch with the `Agent` tool (`subagent_type: <the agent chosen above>`, `model: opus`). Prompt it:
+Dispatch with the `Agent` tool (`subagent_type: <the agent chosen above>`, and the strongest model available, e.g. `model: opus` in Claude Code). In a harness without a subagent tool, implement the ticket yourself under the same file-scope rule and run batches one ticket at a time. Prompt it:
 
 ```
 Implement this ticket. Edit ONLY these files — touch nothing else (other agents
@@ -212,7 +212,7 @@ ticket correctly requires touching a file not on this list, stop and report that
 (name the file and why) instead of editing it or shipping an incomplete fix —
 the orchestrator will re-scope and re-announce (Step 2) then re-dispatch.
 
-User already confirmed this grounding — honor it:
+Grounding for this ticket (user-confirmed if a risk trigger fired) — honor it:
 READING: <concept/ADR paths from the confirmed frame>
 PROPOSED CODE CHANGES: <confirmed intents>
 Code wins over docs; open the cited sources before changing behavior. Do not
@@ -268,11 +268,11 @@ Work the ticket's `lane`; override it only if the acceptance criteria clearly de
   3. Set frontmatter `resolution: <one-line: what changed>` and `updatedAt`. Check the `## Acceptance criteria` boxes that hold.
   4. Gate, then move:
      ```bash
-     node ~/.claude/skills/ship-it/scripts/verify.mjs done tickets/in-progress/<slug>.md && \
+     node <skill-dir>/scripts/verify.mjs done tickets/in-progress/<slug>.md && \
      git mv tickets/in-progress/<slug>.md tickets/done/<slug>.md
      ```
      If it prints anything, the ticket does not move. Fix the ticket file if the QA block or resolution is missing; if the work itself is not verified, it is not fast-lane.
-  5. Skip to **Commit Per Completed Ticket** directly from here (still run doc-ingest close-out).
+  5. Skip to **Commit Per Completed Ticket** directly from here. Doc write-back still happens once, at the run-level stop.
 
   When unsure, do **not** fast-lane.
 - **Full pipeline (everything else).** Bugs, anything touching a disqualifying path above, anything not fully provable by the existing tests, or any change you can't confidently call mechanical → continue below.
@@ -396,7 +396,7 @@ Approved — commit it now (see Commit Per Completed Ticket). One commit per tic
 2. Set frontmatter `resolution: <one-line: what changed>` and `updatedAt`. Check the `## Acceptance criteria` boxes that hold.
 3. Gate, move and commit (include confirmed concept ingest paths — see Commit Per Completed Ticket). The gate refuses a ticket with no `verified`/`pass` block, no `reviewed: perfect`, an empty `resolution`, empty acceptance criteria, an off-schema `kind`, or `reviewRounds` above 2. Anything printed means the ticket stays put — fix the file, or the work, before retrying:
    ```bash
-   node ~/.claude/skills/ship-it/scripts/verify.mjs done tickets/in-review/<slug>.md
+   node <skill-dir>/scripts/verify.mjs done tickets/in-review/<slug>.md && \
    git mv tickets/in-review/<slug>.md tickets/done/<slug>.md
    git add <scoped product paths> <confirmed concept ingest paths> tickets/done/<slug>.md
    git commit -m "<slug>: <resolution>" -- <the same paths>
@@ -500,7 +500,7 @@ Queue complete.
   regression:       N  (needs re-triage — see TRIAGE.md)
   in-review:        N  (unresolved — hung/dead reviews, recovered next run)
   committed:        N
-  doc-grounded:     N tickets announced + user-confirmed
+  doc-grounded:     N recorded, N stopped for a risk confirm
   docs-ingested:    N concept files updated across commits
   human-judgement:  N criteria logged for manual review
   needs-triage:     N  (not picked up this run)
@@ -528,7 +528,7 @@ git log -p <the SHA from Preflight 0>..HEAD
 **Then close out the docs, once, against this diff.** The code is committed, the whole run is visible, and you are not guessing what a ticket might have made wrong.
 
 ```bash
-node ~/.claude/skills/ship-it/scripts/doc-ground.mjs --json --repo . -- <every file this run touched>
+node <skill-dir>/scripts/doc-ground.mjs --json --repo . -- <every file this run touched>
 ```
 
 Re-read each doc it names against the code as it now stands. Fix what this run made wrong, delete anything that turns out to be paraphrase, and commit the doc changes in one commit. A doc naming a source path that no longer exists is fiction, not staleness — that outranks everything else on the list. Nothing gets stamped. See **Docs** below.
@@ -537,7 +537,7 @@ Re-read each doc it names against the code as it now stands. Fix what this run m
 
 Anything you decide to leave, say so and say why.
 
-**Offer a simplification pass, don't run one.** While showing the diff, say whether anything in it is worth a second look for readability — a function that grew past fifty lines, three levels of nesting, a nested ternary, logic duplicated across the run. If something qualifies, name it in one line and offer `/code-simplification` scoped to the run's files. If nothing does, say nothing; do not report the absence.
+**Offer a simplification pass, don't run one.** While showing the diff, say whether anything in it is worth a second look for readability — a function that grew past fifty lines, three levels of nesting, a nested ternary, logic duplicated across the run. If something qualifies, name it in one line and offer a simplification pass scoped to the run's files (a `code-simplification` skill if one is installed; it is not part of this repo). If nothing does, say nothing; do not report the absence.
 
 It is a separate pass on purpose. That skill wants each simplification committed on its own, separate from the feature work, and this loop commits one ticket per commit — so running it inside the loop would put the two in conflict. After the run, on committed code, with the diff in front of you, it has neither problem.
 
@@ -625,7 +625,7 @@ What replaced it: **a doc is verified by reading it against its sources when you
 Once per run, against the whole diff — not per ticket, where it was a confirm nobody read.
 
 ```bash
-node ~/.claude/skills/ship-it/scripts/doc-ground.mjs --json --repo . -- <every file this run touched>
+node <skill-dir>/scripts/doc-ground.mjs --json --repo . -- <every file this run touched>
 ```
 
 For each doc it names: re-read it against the code as it now stands. Fix what this run made wrong, delete anything that turned out to be paraphrase, and commit the doc changes together in one commit. In the same commit, mine the run's `done/` tickets for Gotchas — see **The Run-Level Stop** — and fix every `doc-contradiction:` line the run's tickets recorded in Step 2b. If a doc names a source path that no longer exists, that is fiction rather than staleness and it outranks everything else on the list — retarget or retire it.
@@ -642,7 +642,7 @@ Nothing is stamped. Git already records when the doc changed and when its source
 
 ### Rules ship-it must not break
 
-The rules are okf's, and they live in one place: `~/.claude/skills/okf/SKILL.md` § Rules. Read them there; this file does not restate them, because a second copy is exactly the duplication those rules forbid. The short form: code is required reading, never invent a symbol, never restate the code, cite symbols not line numbers, corrections are dated history in the covering doc, entry files route.
+The rules are okf's, and they live in one place: the `okf` skill's `SKILL.md` § Rules (installed alongside this skill from the same repo). Read them there; this file does not restate them, because a second copy is exactly the duplication those rules forbid. The short form: code is required reading, never invent a symbol, never restate the code, cite symbols not line numbers, corrections are dated history in the covering doc, entry files route.
 
 Two rules are ship-it's own:
 

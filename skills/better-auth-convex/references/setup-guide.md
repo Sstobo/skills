@@ -354,6 +354,8 @@ function App() {
 }
 ```
 
+`ensureQueryData` is what the upstream guide uses. From `@tanstack/react-query` 5.102.0 it is deprecated in favour of `await context.queryClient.query({ ...convexQuery(fn, args), staleTime: 'static' })`, which is what the Convex TanStack Start docs now show. `ensureQueryData` still works in 5.x; `query()` needs 5.102.0 or later.
+
 ### Sign in / sign up (client only)
 
 ```ts

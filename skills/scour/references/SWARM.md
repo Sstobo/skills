@@ -2,7 +2,7 @@
 
 How Act 2 fans out its agents so the report is rigorous, not a pile of opinions. Scour has **no workflow script** — the lead agent drives the swarm directly with the **Agent tool**: spawn the finders, collate and dedup their output, spawn skeptics to verify, keep the survivors. This file is the contract every agent the lead spawns must follow, and the loop the lead must run without cutting corners.
 
-The discipline that a script used to guarantee is now the lead's job. Hold to it: **every finding gets a skeptic before it reaches the report — no exceptions, no batching it away.**
+The discipline that a script used to guarantee is now the lead's job. Hold to it: **every finding gets a skeptic before it reaches the report — no exceptions. Batch findings across skeptics, but never skip one.**
 
 ## How the lead drives the swarm
 

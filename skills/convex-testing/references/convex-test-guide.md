@@ -154,13 +154,38 @@ const reply = await t.action(api.messages.sendAIMessage, { prompt: "hello" });
 vi.unstubAllGlobals();
 ```
 
+Mocking the global `fetch` does not affect `t.fetch`.
+
+### Overriding Globals Inside a Function
+
+`convex-test` scopes global overrides made inside a handler to that one invocation, but only when you assign to the global:
+
+```ts
+const result = await t.run(async () => {
+  const replacement: Math = Object.create(globalThis.Math);
+  replacement.random = () => 0.5;
+  globalThis.Math = replacement;   // scoped to this call
+  return Math.random();
+});
+```
+
+Mutating the shared object (`Math.random = ...`), `Object.defineProperty` (which `vi.stubGlobal` uses), or `delete globalThis.x` change the global for the whole test process and disable the restrictions `convex-test` applies inside queries and mutations. Nested `ctx.runQuery`/`runMutation`/`runAction` calls do not inherit the override.
+
 ### Modules Glob
 
-When using `t.run`, `t.fetch`, or scheduled functions, pass the modules glob:
+`convex-test` loads your functions with its own `import.meta.glob` over the default `convex/` folder. If your functions live elsewhere (custom folder in `convex.json`, monorepo), pass a glob matching every file that contains Convex functions, relative to the file that calls `import.meta.glob`. The official examples pass one in every test; that is harmless with the default layout.
 
 ```ts
 const modules = import.meta.glob("./**/*.ts");
 const t = convexTest(schema, modules);
+```
+
+The docs suggest keeping it in one place:
+
+```ts
+// convex/test.setup.ts
+/// <reference types="vite/client" />
+export const modules = import.meta.glob("./**/!(*.*.*)*.*s");
 ```
 
 ## Limitations

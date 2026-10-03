@@ -200,7 +200,8 @@ Let a real verification pass decide this. Do not pre-split a large document on a
 Structural markdown over prose: headings, tables, fenced code. An agent retrieves from
 structure better than from paragraphs, and so does a human skimming at 2am.
 
-Cite code as `path/to/file.ts:120` — clickable, and specific enough to check. Cite other
+Cite code by symbol and file — `` `resolveRoll` in `x.ts` `` — not `x.ts:120`; line numbers
+drift on every edit above them (see the table above). Cite other
 docs with bundle-relative markdown links. Attribute external claims with an inline link
 to the original.
 

@@ -7,7 +7,7 @@ a comment is good, it is **blast radius**: how far does this knowledge reach?
 
 | If the comment… | Verdict | What happens |
 | --- | --- | --- |
-| explains *this line or this file only* — a local workaround, a type hack, a non-obvious branch | **Stays** | Untouched. A doc may cite it as `path.ts:120`. |
+| explains *this line or this file only* — a local workaround, a type hack, a non-obvious branch | **Stays** | Untouched. A doc may cite it by the symbol it sits in (`` `fn` in `path.ts` ``). |
 | warns a **caller** about something they would otherwise get wrong | **Stays** | Untouched. The warning must sit where the mistake happens. |
 | names other modules, lists composers or consumers, asserts a cross-file invariant | **Moves** | Becomes or joins a Module / Flow doc. Code keeps one line: `// see: /path/to/doc.md`. |
 | states a business rule, a decision, or a why | **Moves** | Becomes a Term / Decision / Convention doc, linked from the code. |
@@ -49,7 +49,7 @@ Never strip these in the name of tidiness:
 
 - Warnings that prevent a caller from introducing a bug.
 - Explanations of a deliberate deviation from an obvious approach.
-- `TODO` / `FIXME` / `ponytail:` markers and their reasoning.
+- `TODO` / `FIXME` / `HACK` and similar markers, and their reasoning.
 - Anything a reader needs *at that line* to avoid making the change wrong.
 - License, attribution, and generated-file headers.
 

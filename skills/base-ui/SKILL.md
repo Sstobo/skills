@@ -26,7 +26,7 @@ Handbook (same `.md` trick):
 Components: accordion, alert-dialog, autocomplete, avatar, button, checkbox,
 checkbox-group, collapsible, combobox, context-menu, dialog, drawer, field,
 fieldset, form, input, menu, menubar, meter, navigation-menu, number-field,
-otp-field, popover, preview-card, progress, radio, scroll-area, select,
+otp-field, popover, preview-card, progress, radio-group, scroll-area, select,
 separator, slider, switch, tabs, toast, toggle, toggle-group, toolbar, tooltip.
 
 ## What holds across all of them
@@ -54,6 +54,8 @@ separator, slider, switch, tabs, toast, toggle, toggle-group, toolbar, tooltip.
 npm i @base-ui/react
 ```
 
-Add `<div className="root">` isolation only if the docs for the component say
-so; otherwise no provider is required. `DirectionProvider` for RTL,
-`CspProvider` if you run a strict CSP.
+The package was renamed from `@base-ui-components/react`; use `@base-ui/react`
+in every import. No provider is required. The quick start recommends wrapping
+the app in `<div className="root">` with `.root { isolation: isolate; }` so
+portaled popups always sit above page content. `DirectionProvider` for RTL,
+`CSPProvider` if you run a strict CSP.

@@ -6,8 +6,11 @@ npm install -D @stylexjs/unplugin                  # Vite/Rollup/Webpack/esbuild
 npm install -D @stylexjs/babel-plugin @stylexjs/postcss-plugin   # Next.js
 ```
 
-Every bundler needs a CSS entrypoint containing `@stylex;`, imported from the
-app root. The plugin appends the aggregated CSS to that file.
+Every bundler needs one CSS file imported from the app root (root layout or
+JS entry). The unplugin appends the aggregated StyleX CSS to the CSS asset the
+bundler emits (or writes `stylex.css` if there is none). With the PostCSS
+plugin (Next.js, plain PostCSS) that file must contain `@stylex;` exactly once;
+the plugin replaces the directive with the generated CSS.
 
 ## Vite
 
@@ -26,6 +29,10 @@ StyleX must come before `@vitejs/plugin-react` or Fast Refresh breaks.
 Same shape, different method: `stylex.webpack({...})`, `stylex.rspack({...})`,
 `stylex.esbuild({...})`, `stylex.rollup({...})` — each takes
 `{ useCSSLayers: true }` and goes in that bundler's `plugins` array.
+In CommonJS configs use `require('@stylexjs/unplugin').default`. Webpack and
+Rspack also need a CSS extractor (`MiniCssExtractPlugin` /
+`rspack.CssExtractRspackPlugin`) so there is a stylesheet to append to;
+esbuild needs `metafile: true`.
 
 ## Next.js
 
@@ -70,7 +77,8 @@ Then `@stylex;` in `app/globals.css`.
 
 ## Options worth knowing
 
-Babel plugin: `dev` (readable class names), `runtimeInjection` (leave false),
+Babel plugin: `dev` (runtime injection + Dev Tools metadata), `debug`
+(readable style keys and `data-style-src`), `runtimeInjection` (leave false),
 `treeshakeCompensation` (true if styles vanish), `aliases` (mirror your bundler),
 `unstable_moduleResolution` (needed for theming APIs), `classNamePrefix`,
 `importSources`, `styleResolution` ('property-specificity' default, or
@@ -85,7 +93,9 @@ npm install -D @stylexjs/eslint-plugin
 ```
 
 Rules: `valid-styles` (error), `no-unused` (error), `valid-shorthands` (warn),
-`sort-keys` (warn), `enforce-extension` (`.stylex.js` theme files).
+`sort-keys` (warn), `enforce-extension` (`.stylex.js` theme files),
+`no-conflicting-props` (`className`/`style` next to `stylex.props()`),
+`no-legacy-contextual-styles`.
 
 ## Troubleshooting
 

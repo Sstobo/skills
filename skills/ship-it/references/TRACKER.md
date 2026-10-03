@@ -187,7 +187,7 @@ grep -rH -e 'priority:' -e 'kind:' --include='*.md' tickets/ready
 The file tracker has no database to reject a bad value, so the guards above are only as good as the last agent that honoured them. The lint is a script; run it before a loop and after a triage pass. Every line it prints is a violation; silence is a pass.
 
 ```bash
-node ~/.claude/skills/ship-it/scripts/verify.mjs lint --repo .
+node <skill-dir>/scripts/verify.mjs lint --repo .
 ```
 
 It checks: `kind` is exactly `afk`|`hitl` in every state (whole value — `hitl-ish`, `AFK` and empty all fail; `lane` and `category` are not linted — the loop never branches on them); `done/` has a `resolution`; `in-progress/` has a stamped `claimedAt`; a non-`hitl` ticket in `in-review/` has `reviewRounds`, and none is above the cap of 2. The same script's `done` subcommand gates every move into `done/` (LOOP.md), and `preflight` adds the stale claims and dead reviews a human has to decide on.
@@ -207,7 +207,7 @@ Work it top to bottom. Do not skip a step because it looks clean.
 **2. Run preflight and classify every line.**
 
 ```bash
-node ~/.claude/skills/ship-it/scripts/verify.mjs preflight --repo .
+node <skill-dir>/scripts/verify.mjs preflight --repo .
 ```
 
 Each line is one of six shapes. Fix each per the table, then move on. Open one ticket at a time; never bulk-edit with sed across the folder.
@@ -245,7 +245,7 @@ If the tree has product changes in a ticket's `changedFiles` that you did not ma
 
 - `tickets/README.md` still matches the folder layout and the commands in the template above.
 - The AGENTS.md trigger block still matches the one in this file.
-- If the repo has a docs bundle, run `node ~/.claude/skills/ship-it/scripts/doc-ground.mjs --json --repo . -- tickets/README.md AGENTS.md` and re-read any doc it names against the tracker as it now stands. Fix what is wrong; commit doc changes in a second commit.
+- If the repo has a docs bundle, run `node <skill-dir>/scripts/doc-ground.mjs --json --repo . -- tickets/README.md AGENTS.md` and re-read any doc it names against the tracker as it now stands. Fix what is wrong; commit doc changes in a second commit.
 
 **7. Report.** Counts per state from the filesystem, what was released, parked, or moved to done, every ticket left for the user to decide, and the list of stale intake with your recommendation. Then stop. Repair does not claim work.
 
@@ -256,10 +256,10 @@ Run at the start of every Ship It session. Fix failures before continuing.
 1. **`tickets/` exists** at the repo root.
 2. **Status folders exist:** `needs-triage`, `needs-info`, `ready`, `in-progress`, `in-review`, `done`, `regression`, `wontfix`.
 3. **Artifact folders exist:** `prds`, `research`, `.out-of-scope`.
-5. **`tickets/README.md` exists** (explains the tracker).
-6. **AGENTS.md trigger block.** Root `AGENTS.md` has the Tickets section (see below).
-7. **Docs bundle (optional).** A `docs/` or `knowledge/` folder whose markdown carries
-   `sources` frontmatter. Phase 3 Step 2 uses `ship-it/scripts/doc-ground.mjs` to name the
+4. **`tickets/README.md` exists** (explains the tracker).
+5. **AGENTS.md trigger block.** Root `AGENTS.md` has the Tickets section (see below).
+6. **Docs bundle (optional).** A `docs/` or `knowledge/` folder whose markdown carries
+   `sources` frontmatter. Phase 3 Step 2 uses `<skill-dir>/scripts/doc-ground.mjs` to name the
    docs covering each ticket's files. No bundle is not a Phase 0 failure — the frame just
    comes back empty. See the `okf` skill to start one.
 
@@ -282,8 +282,6 @@ for d in tickets/{needs-triage,needs-info,ready,in-progress,in-review,done,regre
 ```
 
 And `tickets/README.md` (the durable explainer — see the README Template below).
-
-Add `.ship-it/` to `.gitignore` if it is not already there (scratch logs for the loop).
 
 Stage and commit the scaffold as one atomic commit (`tickets: scaffold file-based tracker`) only if the user is starting fresh and wants it committed. Otherwise leave it in the working tree.
 

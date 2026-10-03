@@ -2,7 +2,7 @@
 
 Run this inside the repo, by the agent already working there. One area or the whole bundle. It finds fiction, duplication and unrouted docs; it proposes deletions and moves, and applies them only after one approval. Nothing here is automated beyond the commands shown.
 
-Bundle root is wherever `sources:` frontmatter lives — usually `docs/`. Entry files are `AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTEXT.md`, `docs/index.md`.
+Bundle root is wherever `sources:` frontmatter lives — usually `docs/`. Run the commands from the repo root; they assume `docs/`, so substitute your bundle root if it differs. Entry files are `AGENTS.md`, `CLAUDE.md`, `README.md`, `CONTEXT.md`, `docs/index.md`.
 
 ## 1. Fiction — a doc that names something that does not exist
 
@@ -94,7 +94,7 @@ run cut 60% and found twelve wrong claims in the process.
 **3c. Line anchors.**
 
 ```bash
-grep -rnoE --include='*.md' '`[A-Za-z0-9_./\[\]-]+\.(ts|tsx|json|py|go|rs):[0-9]+' docs CONTEXT.md AGENTS.md
+grep -rnoE --include='*.md' '`[][A-Za-z0-9_./-]+\.(ts|tsx|json|py|go|rs):[0-9]+' docs CONTEXT.md AGENTS.md
 ```
 
 Every hit outside a dated-history sentence becomes the symbol name at that location

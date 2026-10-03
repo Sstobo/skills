@@ -13,7 +13,7 @@
 //
 // Exit 0 whenever it can print a frame (including zero matches). Exit 2 on usage error.
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, realpathSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -182,4 +182,4 @@ function main() {
   console.log(JSON.stringify({ docs: hits.map((h) => ({ path: h.path, type: h.type, matched: h.matched })), uncovered: gaps }, null, 2))
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main()
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) main()

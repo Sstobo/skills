@@ -173,7 +173,7 @@ new ConvexReactClient(url, { verbose: true })                  // client
 
 ### JWT caching
 
-`fetchAuth*` reuse the JWT from request cookies when unexpired, saving a token request per SSR. Needs `isAuthError` so a stale cached token is refreshed on auth failure:
+`fetchAuth*` reuse the JWT from request cookies when unexpired, saving a token request per SSR. `isAuthError` is required. In 0.12.5 (`dist/react-start/index.js`), when a call made with a cached token fails, it is retried once with a fresh token only if `isAuthError` does **not** match the error; matching errors are rethrown. Read the source for your installed version before relying on either behaviour:
 
 ```ts
 // lib/utils.ts
@@ -211,13 +211,13 @@ Then `getAuthConfigProvider({ jwks: process.env.JWKS })` in `auth.config.ts` and
 
 ### AuthBoundary
 
-See `gotchas.md` for the full wiring. Props: `authClient`, `onUnauth`, `getAuthUserFn` (from `authComponent.clientApi()`), `isAuthError`.
+See `gotchas.md` for the full wiring. Props: `authClient`, `onUnauth`, `getAuthUserFn` (from `authComponent.clientApi()`), `isAuthError`, and optional `renderFallback`.
 
 ## Migrations
 
 | Version | Change |
 |---|---|
-| 0.12 | Better Auth 1.6.9+. Cross-domain (SPA/Expo) apps must set `baseURL: process.env.CONVEX_SITE_URL`. CLI is `npx auth generate` |
+| 0.12 | Better Auth 1.6.x (migration doc says 1.6.9+; the 0.12.5 peer range requires >=1.6.11). Cross-domain (SPA/Expo) apps must set `baseURL: process.env.CONVEX_SITE_URL`. CLI is `npx auth generate` |
 | 0.11 | Better Auth 1.5. Passkey removed from bundled schema. `oauthApplication.redirectURLs` renamed `redirectUrls` |
 | 0.10 | `getAuthConfigProvider()` (customJwt, RS256). `convex({ authConfig })` required. `jwksRotateOnTokenGenerationError: true` during migration. `convexBetterAuthReactStart` replaces `setupFetchClient` and `reactStartHandler`. `expectAuth: true`, `initialToken`, reload on sign out. `optionsOnly` param dropped |
 

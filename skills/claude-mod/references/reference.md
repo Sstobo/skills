@@ -204,7 +204,7 @@ Tab next control · Up/Down move or scroll · Enter press/submit/pick · hotkey 
 
 | Name | Effect |
 |---|---|
-| `CLAUDE_CODE_PLUGIN_DIRS` | like `--plugin-dir`, `:`-separated abs paths |
+| `CLAUDE_CODE_PLUGIN_DIRS` | like `--plugin-dir`, `:`-separated abs paths (`;` on Windows) |
 | `CLAUDE_CODE_PLUGIN_DIR_WATCH=1` | hot reload in long-running non-interactive sessions |
 | `prependPlugins` / `appendPlugins` | managed (or user if no managed + no Team/Enterprise) ordering |
 | `allowManagedModsOnly` | sec-default option: only org + built-in mods |

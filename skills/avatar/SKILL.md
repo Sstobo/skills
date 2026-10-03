@@ -1,6 +1,6 @@
 ---
 name: avatar
-description: This skill should be used when the user wants a complete, verified picture of a thing in their project — a feature, system, concept, bug, or decision. The verified result is presented as an "avatar" — current state, all details, doc references, and decision-making history. 
+description: This skill should be used when the user wants a complete, verified picture of a thing in their project — a feature, system, concept, bug, or decision. The verified result is presented as an "avatar" — current state, all details, doc references, and decision-making history.
 ---
 
 # Avatar
@@ -15,7 +15,7 @@ Restate the target in one sentence ("Building an avatar of: <X> — the <what it
 
 ### Step 1 — Recon fan-out (research team)
 
-Launch parallel `Explore` agents in a single message, one per dimension. Each prompt must demand raw structured data with `file:line` citations, not prose. Dimensions (skip any with no plausible material):
+Launch parallel read-only research subagents in a single message, one per dimension (in Claude Code, `Explore` agents; in a harness without subagents, run the dimensions yourself one at a time and keep the challenge pass separate). Each prompt must demand raw structured data with `file:line` citations, not prose. Dimensions (skip any with no plausible material):
 
 1. **Code** — every file, function, type, and export that implements or touches the target. Return a list: path, symbol, one-line role.
 2. **Connections** — what calls it, what it calls, data flow in/out, config/env vars it reads, schema/tables it owns. Return edges: `A -> B (why)`.
@@ -27,7 +27,7 @@ For a small target (single file / small util), collapse to two agents: code+conn
 
 ### Step 2 — Draft avatar
 
-Synthesize into a working draft (scratchpad file, not shown yet):
+Synthesize into a working draft (a temp or scratchpad file, not shown yet):
 
 - **Identity** — what it is, in three sentences.
 - **Where it lives** — file list with roles.
@@ -39,7 +39,7 @@ Synthesize into a working draft (scratchpad file, not shown yet):
 
 ### Step 3 — Challenge pass (adversarial team)
 
-Launch a second wave of parallel `Explore` agents. Split the claims register among 2–4 challengers, plus one gap-hunter. Prompts must be adversarial:
+Launch a second wave of parallel read-only subagents (`Explore` in Claude Code). Split the claims register among 2–4 challengers, plus one gap-hunter. Prompts must be adversarial:
 
 - Challengers: "Attempt to REFUTE each claim. Open the cited file:line and confirm it says what's claimed. Check doc quotes against current code. Verdict per claim: CONFIRMED / WRONG (with correction) / STALE (doc drift) / UNVERIFIABLE."
 - Gap-hunter: "Here is a map of X. What is missing? Search for callers, configs, docs, or history the map doesn't mention. Return only genuinely missing items with evidence."
@@ -48,7 +48,7 @@ Apply corrections. Claims that stay WRONG or UNVERIFIABLE either get fixed with 
 
 ### Step 4 — Present the avatar
 
-Deliver as a self-contained HTML report (per the user's Visual Reports convention: dark theme, Tailwind + Mermaid via CDN, single file). Write to `docs/avatars/<target>-<YYYY-MM-DD>.html` in a git repo (create dir if absent), else the scratchpad; then `open` it and give the absolute path.
+Deliver as a self-contained HTML report: dark theme, Tailwind + Mermaid via CDN, single file. Write to `docs/avatars/<target>-<YYYY-MM-DD>.html` in a git repo (create dir if absent), else a temp directory; then open it in a browser (`open` on macOS, `xdg-open` on Linux) and give the absolute path.
 
 Report structure:
 
