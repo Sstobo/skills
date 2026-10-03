@@ -1,6 +1,7 @@
 ---
 name: ship-it
-description: Task-writing and task-completing flow for any codebase. Use when the user says "ship it", "let's build this", "start a feature", "kick off a build", "complete the queue", "triage tickets", "repair the tracker", "create a ticket", "review incoming bugs", "prep a ticket for an agent", or wants to turn an idea or PRD into tickets and drive them to verified trunk commits. Runs one integrated pipeline: tracker setup, PRD, QA-ready tickets, triage, and an implement/verify/review loop with atomic commits. Grilling and code review are in-house; research and codebase audits are out of scope. Artifacts live in a file-based tracker — markdown files under the repo's tickets/ folder, not GitHub Issues or a database.
+description: >-
+  Task-writing and task-completing flow for any codebase. Use when the user says "ship it", "let's build this", "start a feature", "kick off a build", "complete the queue", "triage tickets", "repair the tracker", "create a ticket", "review incoming bugs", "prep a ticket for an agent", or wants to turn an idea or PRD into tickets and drive them to verified trunk commits. Runs one integrated pipeline: tracker setup, PRD, QA-ready tickets, triage, and an implement/verify/review loop with atomic commits. Grilling and code review are in-house; research and codebase audits are out of scope. Artifacts live in a file-based tracker — markdown files under the repo's tickets/ folder, not GitHub Issues or a database.
 ---
 
 # Ship It
