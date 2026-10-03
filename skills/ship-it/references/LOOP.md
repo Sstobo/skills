@@ -277,7 +277,7 @@ Work the ticket's `lane`; override it only if the acceptance criteria clearly de
   When unsure, do **not** fast-lane.
 - **Full pipeline (everything else).** Bugs, anything touching a disqualifying path above, anything not fully provable by the existing tests, or any change you can't confidently call mechanical → continue below.
 
-Note: the review runs in the background and doesn't cost wall-clock (you claim the next ticket while it runs), so when the queue is mixed, default to full pipeline. The fast lane is for a *homogeneous block of low-risk mechanical tickets* where per-ticket review is pure token overhead — reserve the reviewer for the 1-2 risk tickets in the block.
+Note: the review runs in the background and doesn't cost wall-clock (you can claim the next batch while it runs), so when the queue is mixed, default to full pipeline. The fast lane is for a *homogeneous block of low-risk mechanical tickets* where per-ticket review is pure token overhead — reserve the reviewer for the 1-2 risk tickets in the block.
 
 When a block is several disjoint mechanical tickets, also prefer **batching**: claim the disjoint set together and run them through one implementer pass rather than one agent per trivial edit.
 
@@ -293,7 +293,7 @@ Full pipeline — do **not** commit yet; the commit is gated on the batch review
    git mv tickets/in-progress/<slug>.md tickets/in-review/<slug>.md
    ```
 3. Stamp frontmatter `updatedAt` and `reviewRounds: 1`. Add any confirmed concept paths to `changedFiles` (already registered at Step 2a). Add a `## History` line.
-4. **If the batch is not full** (see Batches), return to Step 1 and claim the next ticket. Otherwise flush it: dispatch one review over every ticket in the batch (`Agent`, `subagent_type: general-purpose`). Ship-it owns the review contract — do **not** call an external review skill. Before dispatching, write the **Worth your attention** line for each ticket in the prompt below: you watched the implementation land and the reviewer did not, so name the one failure mode a passing type-check and a green suite would *not* surface. This one line is where the review earns its cost — a generic diff read finds what the tools already find. Prompt the agent:
+4. **Flush the batch.** The batch was claimed up front (see Batches), so once every ticket in it has reached this step, dispatch one review over every ticket in the batch (`Agent`, `subagent_type: general-purpose`). Ship-it owns the review contract — do **not** call an external review skill. Before dispatching, write the **Worth your attention** line for each ticket in the prompt below: you watched the implementation land and the reviewer did not, so name the one failure mode a passing type-check and a green suite would *not* surface. This one line is where the review earns its cost — a generic diff read finds what the tools already find. Prompt the agent:
 
    ```
    Review the uncommitted changes to exactly these files. Ignore everything

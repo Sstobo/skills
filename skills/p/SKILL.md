@@ -1,6 +1,6 @@
 ---
 name: p
-description: Sweep up everything in the working tree, commit it as one clean commit, and push it (built for solo work directly on main). Use when the user says "/p", "p", "sweep it all up", "commit everything and push", or "commit all and push".
+description: Sweep up everything in the working tree, commit it as one clean commit, and push it (built for solo work directly on main). Use when the user says "/p", "sweep it all up", "commit everything and push", or "commit all and push".
 ---
 
 # P
