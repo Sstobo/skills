@@ -67,86 +67,16 @@ If no tracker exists and the user declined setup, skip ticket emission — the b
 
 ### The finding → ticket mapping
 
-Schema authority is `../ship-it/references/TRACKER.md` § Ticket File. Scour writes a standard ticket and adds namespaced metadata — it does **not** fork ship-it's enum.
+Write a standard ticket per `../ship-it/references/TRACKER.md` § Ticket File, into `tickets/needs-triage/`. Check `ls tickets/*/<slug>.md` first so the slug is unique. Scour adds:
 
-```markdown
----
-slug: <kebab-from-title>                # unique; check `ls tickets/*/<slug>.md` first
-title: <imperative finding title>
-category: enhancement                   # best-effort: correctness/security → bug, else enhancement
-kind: afk
-priority: p1
-source: scour                           # marks a pre-analyzed intake ticket
-lens: file-size                         # the real classification scour found it under
-effort: L                               # S | M | L  (for the fix, incl. tests)
-risk: MED                               # LOW | MED | HIGH — what the fix could break
-confidence: high                        # high | med | low
-parentAudit: scour-billing-2026-06-19   # the report slug in tickets/research/
-blockedBy: []
-claimedBy: null
-claimedAt: null
-changedFiles: []
-resolution: null
-createdAt: <ISO8601>                     # date -u +%Y-%m-%dT%H:%M:%SZ
-updatedAt: <ISO8601>
----
+- **Frontmatter:** `source: scour`, `lens` (the lens it was found under), `effort` (S|M|L, incl. tests), `risk` (LOW|MED|HIGH, what the fix could break), `confidence` (high|med|low), `parentAudit` (the report slug in `tickets/research/`). `category` best-effort: correctness/security → `bug`, else `enhancement`. `kind` must be exactly `afk` or `hitl` or ship-it's lint flags it.
+- **`## Parent`:** `research/<report-slug>.md`.
+- **`## What to build`:** the change in domain and deepening vocabulary (shallow module, god-file, drift, missing seam → the deep module, split, or fix), with the why inline so a zero-context executor gets the intent.
+- **`## Evidence`** (after What to build): the confirmed current-state anchors, `path:line — what's there`. Never a secret value; file:line, credential type, and a rotation recommendation.
+- **`## Implementation notes`** (Tier 3 only): the chosen interface, dependency category, and test-replacement note.
+- **History:** `created → needs-triage  [scour]`.
 
-## Parent
-
-Scour audit — research/scour-billing-2026-06-19.md
-
-## Category
-
-enhancement
-
-## What to build
-
-<the proposed change, in the project's domain vocabulary + deepening vocabulary.
- Name the shallow module / god-file / drift / missing seam and the deep module,
- split, or fix that replaces it. Inline the why — leverage and locality — so a
- zero-context executor understands intent.>
-
-## Evidence
-
-- `path/to/a.ts:120-210` — <one line: what's there today>
-- `path/to/b.ts:42` — <…>
-(The current-state anchors the finder confirmed. Never a secret value — file:line
- and credential type only, and recommend rotation.)
-
-## Implementation notes
-
-<For a deepening / split / new seam: the interface chosen by the design-it-twice
- pass (types, entry points, invariants, error modes), the dependency category
- (in-process / local-substitutable / remote-owned / true-external), and the
- test-replacement note (write tests at the new interface; delete the old
- shallow-module tests). Omit this section for cosmetic tickets.>
-
-## Acceptance criteria
-
-<!-- DRAFT — triage finalizes. Machine-checkable where possible. -->
-- [ ] <observable done-state through the interface>
-- [ ] <the old pattern is gone: `grep -rn "<old>" <area>` returns nothing>
-- [ ] <tests at the new interface exist and pass; redundant old tests deleted>
-
-## Verification
-
-Lane: <agent | manual — scour's best guess; triage confirms>
-
-## Blocked by
-
-<other scour slugs from this run it depends on, e.g. characterization tests
- before the refactor they protect — or None.>
-
----
-
-## QA Reports
-
-## History
-
-- <ISO8601>  created → needs-triage  [scour]
-```
-
-`kind` and `priority` are scour's best guess; triage confirms them. `kind` must be present and exactly `afk` or `hitl`: ship-it's tracker lint (`verify.mjs lint`) flags any intake ticket without it.
+`kind` and `priority` are best guesses; triage confirms them.
 
 Acceptance criteria are **drafted, not final** — scour knows the done-state better than triage will (it found the problem and, for deepenings, designed the interface), so it writes the first cut; triage sharpens and signs off. Keep them concrete and independently testable; lean on the done-criteria/STOP-condition mindset (machine-checkable commands over prose like "works correctly").
 

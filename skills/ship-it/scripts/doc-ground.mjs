@@ -2,16 +2,14 @@
 // ship-it doc-ground — which docs cover the files this ticket touches?
 //
 // Scans a repo's knowledge bundle for markdown whose frontmatter `sources` name any of
-// the scoped paths, and prints the SHIP-IT DOC GROUNDING frame for the agent to fill in
-// and show the user.
+// the scoped paths, and prints them as a reading list.
 //
-//   node doc-ground.mjs [--slug S] [--title T] [--repo DIR] [--bundle DIR] -- <files...>
-//   node doc-ground.mjs --json [--repo DIR] -- <files...>
+//   node doc-ground.mjs [--repo DIR] [--bundle DIR] [--json] -- <files...>
 //
 // There is no drift engine and no staleness claim. A doc is verified by reading it
 // against its sources, not by a timestamp. This tool routes; it does not judge.
 //
-// Exit 0 whenever it can print a frame (including zero matches). Exit 2 on usage error.
+// Exit 0 whenever it can print a list (including zero matches). Exit 2 on usage error.
 
 import { readFileSync, realpathSync, existsSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
@@ -22,17 +20,15 @@ const ROUTERS = new Set(['AGENTS.md', 'CLAUDE.md', 'SKILL.md', 'CONTEXT.md', 'CO
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', '.next', 'coverage'])
 
 function usage(code = 2) {
-  console.error('usage: doc-ground.mjs [--slug S] [--title T] [--repo DIR] [--bundle DIR] [--json] -- <files...>')
+  console.error('usage: doc-ground.mjs [--repo DIR] [--bundle DIR] [--json] -- <files...>')
   process.exit(code)
 }
 
 function parseArgs(argv) {
-  const out = { slug: '<slug>', title: '<title>', repo: process.cwd(), bundles: [], json: false, files: [] }
+  const out = { repo: process.cwd(), bundles: [], json: false, files: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--') { out.files.push(...argv.slice(i + 1)); break }
-    else if (a === '--slug') out.slug = argv[++i]
-    else if (a === '--title') out.title = argv[++i]
     else if (a === '--repo') out.repo = resolve(argv[++i])
     else if (a === '--bundle') out.bundles.push(argv[++i])
     else if (a === '--json') out.json = true
@@ -108,63 +104,6 @@ function uncovered(repo, files, hits) {
   return files.map((f) => relative(repo, resolve(repo, f))).filter((f) => !covered.has(f))
 }
 
-function wrapLines(s, width) {
-  s = String(s)
-  if (s.length <= width) return [s]
-  const out = []
-  let rest = s
-  while (rest.length > width) {
-    let breakAt = rest.lastIndexOf(' ', width)
-    if (breakAt < width * 0.5) breakAt = width
-    out.push(rest.slice(0, breakAt).trimEnd())
-    rest = rest.slice(breakAt).trimStart()
-  }
-  if (rest) out.push(rest)
-  return out
-}
-
-export function frame({ slug, title, bundles, hits, gaps }) {
-  const W = 68
-  const inner = W - 2
-  const rows = []
-  const push = (s) => rows.push(...wrapLines(s, inner).map((p) => `║  ${p}${' '.repeat(inner - p.length)}║`))
-  const rule = () => rows.push(`╠${'═'.repeat(W)}╣`)
-
-  rows.push(`╔${'═'.repeat(W)}╗`)
-  push('SHIP-IT DOC GROUNDING')
-  push(`ticket: ${slug}`)
-  push(`title:  ${title}`)
-  push(`bundle: ${bundles.length ? bundles.join(' ') : '(none found)'}`)
-  rule()
-  push('READ BEFORE EDITING')
-  if (hits.length) {
-    for (const h of hits) push(`- ${h.path}  [${h.type}]`)
-  } else {
-    push('- (no doc covers these files — read the code, and consider')
-    push('   whether this ticket should leave one behind)')
-  }
-  if (gaps.length && hits.length) {
-    rule()
-    push('NOT COVERED BY ANY DOC')
-    for (const g of gaps) push(`- ${g}`)
-  }
-  rule()
-  push('PROPOSED CODE CHANGES')
-  push('- <path>: <one-line intent>   ← agent fills')
-  rule()
-  push('DOCS TO UPDATE (at the run-level stop)')
-  push('- <doc>: <what this change makes wrong, or "none expected">')
-  rule()
-  push('OUT OF SCOPE (will NOT touch)')
-  push('- <path or concern>')
-  rule()
-  push('ELI14')
-  push('- <2-3 plain sentences: what changes, why, what could break.')
-  push('  no paths, no symbol names, no jargon>   ← agent fills')
-  rows.push(`╚${'═'.repeat(W)}╝`)
-  return rows.join('\n')
-}
-
 function main() {
   const opts = parseArgs(process.argv.slice(2))
   if (opts.files.length === 0) usage(2)
@@ -177,9 +116,9 @@ function main() {
     console.log(JSON.stringify({ bundles, docs: hits, uncovered: gaps }, null, 2))
     return
   }
-  console.log(frame({ slug: opts.slug, title: opts.title, bundles, hits, gaps }))
-  console.log('---')
-  console.log(JSON.stringify({ docs: hits.map((h) => ({ path: h.path, type: h.type, matched: h.matched })), uncovered: gaps }, null, 2))
+  if (!bundles.length) console.log('no docs bundle — read the code')
+  for (const h of hits) console.log(`${h.path}  [${h.type}]  covers ${h.matched.join(', ')}`)
+  if (bundles.length && gaps.length) console.log(`not covered by any doc: ${gaps.join(', ')}`)
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) main()

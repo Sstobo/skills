@@ -51,13 +51,9 @@ test('empty acceptance criteria is refused', () => {
   assert.deepEqual(checkDone(join(repo, 'tickets/in-review/x.md')), ['no acceptance criteria — nothing to verify against'])
 })
 
-test('fast lane from in-progress needs the fast-lane note', () => {
-  const repo = tracker({
-    'in-progress/x.md': ticket({ reviewRounds: 'null' }, '### t — verified\npnpm typecheck green; vitest x.test.ts\n'),
-    'in-progress/y.md': ticket({ reviewRounds: 'null' }, '### t — verified\nfast-lane: review skipped — mechanical, test-gated; vitest y.test.ts\n'),
-  })
-  assert.equal(checkDone(join(repo, 'tickets/in-progress/x.md')).length, 1)
-  assert.deepEqual(checkDone(join(repo, 'tickets/in-progress/y.md')), [])
+test('done gate refuses a ticket still in in-progress/', () => {
+  const repo = tracker({ 'in-progress/x.md': ticket({}, goodQA) })
+  assert.deepEqual(checkDone(join(repo, 'tickets/in-progress/x.md')), ['not in in-review/ (found in in-progress/)'])
 })
 
 test('lint and preflight surface what a human must decide', () => {

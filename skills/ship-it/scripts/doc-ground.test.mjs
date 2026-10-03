@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// ponytail: three checks — the frame stays square, coverage resolves both source
-// dialects, and a covered file is never also reported as a gap.
+// ponytail: coverage resolves both source dialects, routers are skipped, and a covered
+// file is never also reported as a gap.
 import assert from 'node:assert'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { frame, coverage, readDoc } from './doc-ground.mjs'
+import { coverage, readDoc } from './doc-ground.mjs'
 
 const repo = mkdtempSync(join(tmpdir(), 'docground-'))
 mkdirSync(join(repo, 'docs/concepts'), { recursive: true })
@@ -39,11 +39,4 @@ const matched = hits.flatMap((h) => h.matched)
 assert.deepEqual(matched.sort(), ['src/a.ts', 'src/b.ts'],
   'matched must hold resolved repo-relative paths, or covered files get reported as gaps')
 
-for (const [label, hits_, gaps] of [['populated', hits, []], ['empty', [], ['src/z.ts']]]) {
-  const out = frame({ slug: 's', title: 't', bundles: ['docs'], hits: hits_, gaps })
-  const widths = new Set(out.split('\n').map((l) => [...l].length))
-  assert.equal(widths.size, 1, `${label} frame is ragged: ${[...widths].join(', ')}`)
-  assert.ok(out.includes('ELI14'), `${label} frame is missing the ELI14 block`)
-  assert.ok(!/reply:? c\b/i.test(out), `${label} frame prints a bare "reply c" affordance`)
-}
-console.log('ok — dialects resolve, routers skipped, no phantom gaps, frame square')
+console.log('ok — dialects resolve, routers skipped, no phantom gaps')

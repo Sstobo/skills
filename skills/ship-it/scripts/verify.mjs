@@ -50,7 +50,7 @@ export function checkDone(path, text = readFileSync(path, 'utf8')) {
   const v = []
   const fm = frontmatter(text)
   const state = basename(resolve(path, '..'))
-  if (!['in-review', 'in-progress'].includes(state)) v.push(`not in in-review/ or in-progress/ (found in ${state}/)`)
+  if (state !== 'in-review') v.push(`not in in-review/ (found in ${state}/)`)
   if (!KINDS.has(fm.kind)) v.push(`kind must be afk|hitl, got "${fm.kind ?? ''}"`)
   if (isNull(fm.resolution)) v.push('resolution is empty — done/ requires a one-line resolution')
   const rounds = Number(fm.reviewRounds)
@@ -59,8 +59,7 @@ export function checkDone(path, text = readFileSync(path, 'utf8')) {
   const qa = section(text, 'QA Reports')
   const verified = /###[^\n]*—\s*(verified|pass)/.test(qa)
   if (!verified) v.push('no QA block headed "— verified" or "— pass" — nothing on record says this was checked')
-  if (state === 'in-review' && fm.kind !== 'hitl' && !/reviewed:\s*perfect/.test(qa)) v.push('non-hitl ticket in in-review/ has no "reviewed: perfect" — review did not return clean')
-  if (state === 'in-progress' && !/fast-lane/.test(qa)) v.push('committing from in-progress/ is the fast lane only — QA block must say "fast-lane" and name the test')
+  if (fm.kind !== 'hitl' && !/reviewed:\s*perfect/.test(qa)) v.push('non-hitl ticket has no "reviewed: perfect" — review did not return clean')
 
   const ac = section(text, 'Acceptance criteria')
   if (!/- \[[ x]\]/.test(ac)) v.push('no acceptance criteria — nothing to verify against')

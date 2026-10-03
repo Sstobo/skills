@@ -54,7 +54,7 @@ Gather everything the swarm needs before dispatching it. Grill one question at a
 
 5. **Detect the tracker.** Scour hands off into ship-it's file tracker. Check for `tickets/`:
    - **Present** → good; scour will write tickets into `tickets/needs-triage/` and its report into `tickets/research/`.
-   - **Missing** → offer to run ship-it's Phase 0 setup (`../ship-it/references/TRACKER.md` § Setup Procedure). If the user declines, scour still runs and delivers the **batch report only** — findings are listed in the report, no ticket files are written. Say so up front.
+   - **Missing** → offer to run ship-it's Phase 0 setup (`../ship-it/references/TRACKER.md` § Setup). If the user declines, scour still runs and delivers the **batch report only** — findings are listed in the report, no ticket files are written. Say so up front.
 
 6. **Size the swarm.** Have an `Explore` agent (Claude Code; any read-only subagent, or a plain `find`/`wc -l` yourself, works) list the files in the area with line counts. This work-list does double duty: it sizes the fan-out (**max 5 finders** — with more than 5 lenses selected, group related lenses onto shared finders rather than spawning more), and it gets **handed to each finder** so they don't re-discover the area (see `references/SWARM.md`). Note the over-threshold files now — the file-size finder must verdict every one. Present a one-paragraph scope summary, then proceed to Act 2.
 

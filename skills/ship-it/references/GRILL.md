@@ -53,9 +53,7 @@ Grilling produces decisions, and decisions rot the docs. Answer both before exit
 
 - Which existing docs did this conversation falsify?
 - Name the file and the claim. Never "docs may need updating".
-- Route each one: fixed here, folded into a ticket's doc ingest, or explicitly deferred with a reason.
-
-If the repo runs OKF, this is the same question the Phase 3 grounding frame asks later. Getting it right here means the frame confirms rather than discovers.
+- Route each one: fixed here, left for the loop's docs write-back, or explicitly deferred with a reason.
 
 ## Exit
 

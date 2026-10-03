@@ -83,7 +83,7 @@ There is no freshness check. A doc is verified by reading it against its sources
 grep -rl --include='*.md' -- '<path/to/file.ts>' docs/
 ```
 
-That is the routing query, and it is the one thing worth automating. If the `ship-it` skill from this repo is installed, it runs this for you through `ship-it/scripts/doc-ground.mjs`, which prints the frame it shows before editing.
+That is the routing query, and it is the one thing worth automating. If the `ship-it` skill from this repo is installed, `ship-it/scripts/doc-ground.mjs` runs it for a list of files.
 
 ## Types
 
@@ -107,11 +107,7 @@ Wherever knowledge already lives (`docs/` or `knowledge/`). Never a parallel tre
 ## Plays with
 
 - **/domain-modeling** (a separate skill, not in this repo; skip this bullet if you do not use it) owns `CONTEXT.md` and `CONTEXT-MAP.md`, and authors ADRs in `docs/adr/NNNN-slug.md`. OKF's only addition to an ADR is frontmatter: `type: Decision` plus the `sources` it governs. Never rewrite an ADR body to satisfy this skill.
-- **/ship-it** (in this repo) is the write-back loop, and the pairing has exactly three touchpoints, all in `ship-it/references/LOOP.md`:
-  1. **Step 2b, reading list.** `doc-ground.mjs` names the docs whose `sources` cover the scoped files. The agent reads them, and records any doc-versus-code contradiction it notices as a `doc-contradiction:` History line. That is the verify pass, taken for free while both are open.
-  2. **Run-level write-back.** Once per run, against the real diff: re-read the covering docs, fix what the run made wrong, fix every recorded contradiction, mine finished tickets for Gotchas. One doc commit.
-  3. **Router check.** Entry files have no `sources`, so the script cannot see them; the write-back diffs them directly and moves any parked fact into a covering doc, per [repair.md](references/repair.md) § Router audit.
-  ship-it's rules block points here rather than restating this file. Anything the loop keeps finding is a field report for **repair**, run deliberately, not something a ticket does on its way past.
+- **/ship-it** (in this repo) is the write-back loop. Per ticket it reads the docs covering its files and logs any doc-versus-code contradiction; once per run it fixes what the run broke, mines finished tickets for Gotchas, and moves facts out of entry files ([repair.md](references/repair.md) § Router audit). Details live in `ship-it/references/LOOP.md`. Anything the loop keeps finding is a field report for **repair**.
 
 ## Is it working?
 
