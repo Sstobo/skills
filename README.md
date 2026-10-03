@@ -26,7 +26,6 @@ npx skills add Sstobo/skills --skill ship-it
 | [inquisitor](skills/inquisitor) | Stress-test a plan or idea, ranked by damage |
 | [check](skills/check) | Fresh-subagent review of the work just done |
 | [honest](skills/honest) | Straight appraisal: keep going or start over |
-| [unslop](skills/unslop) | Strip machine-written tells from prose |
 | [p](skills/p) | Commit everything and push to main |
 
 ### Convex + TanStack Start
